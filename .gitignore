@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 环境变量与密钥（严禁入库）
+.env
+.env.local
+.env.*.local
+
+# 数据库与缓存
+*.db
+*.sqlite3
+*.db-journal
+
+# 测试与工具缓存
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+
+# 测试
+tests/
+test/
+pytest.ini
+
+# 文档与介绍
+项目介绍/

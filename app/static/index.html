@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="canvas:aspect-ratio" content="16:9" />
+  <title>OmniDigest · 跨平台内容智能脱水与事实核查工作台</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    /* ============ 设计令牌（种子层） ============ */
+    :root {
+      --seed-bg: #fafafa;
+      --seed-fg: #111111;
+      --seed-primary: #2563eb;
+      --seed-accent: #2563eb;
+      --seed-surface: #ffffff;
+      --seed-radius: 14px;
+      --font-scale: 1;
+
+      /* 派生层：全部由种子推导，深浅主题共用同一套派生规则 */
+      --bg: var(--seed-bg);
+      --surface: var(--seed-surface);
+      --surface-2: color-mix(in srgb, var(--seed-fg) 3%, var(--seed-surface));
+      --surface-3: color-mix(in srgb, var(--seed-fg) 6%, var(--seed-surface));
+      --fg: var(--seed-fg);
+      --muted: color-mix(in srgb, var(--seed-fg) 56%, var(--seed-surface));
+      --faint: color-mix(in srgb, var(--seed-fg) 38%, var(--seed-surface));
+      --border: color-mix(in srgb, var(--seed-fg) var(--border-strength, 9%), var(--seed-surface));
+      --border-strong: color-mix(in srgb, var(--seed-fg) var(--border-strength-strong, 16%), var(--seed-surface));
+      --primary: var(--seed-primary);
+      --primary-ink: var(--seed-bg);
+      --primary-soft: color-mix(in srgb, var(--seed-primary) 10%, var(--seed-surface));
+      --btn-bg: var(--seed-fg);
+      --btn-fg: var(--seed-surface);
+      --btn-hover: color-mix(in srgb, var(--seed-fg) 85%, var(--seed-surface));
+      --ring: color-mix(in srgb, var(--seed-primary) 22%, transparent);
+
+      /* 语义色：文本色向前景色方向混合，深浅主题自动获得合适明度 */
+      --ok: color-mix(in srgb, var(--c-green) 68%, var(--seed-fg));
+      --ok-bg: color-mix(in srgb, var(--c-green) 10%, var(--seed-surface));
+      --ok-line: color-mix(in srgb, var(--c-green) 34%, var(--seed-surface));
+      --warn: color-mix(in srgb, var(--c-amber) 55%, var(--seed-fg));
+      --warn-bg: color-mix(in srgb, var(--c-amber) 12%, var(--seed-surface));
+      --warn-line: color-mix(in srgb, var(--c-amber) 38%, var(--seed-surface));
+      --danger: color-mix(in srgb, var(--c-red) 60%, var(--seed-fg));
+      --danger-bg: color-mix(in srgb, var(--c-red) 9%, var(--seed-surface));
+      --danger-line: color-mix(in srgb, var(--c-red) 34%, var(--seed-surface));
+      --neutral-tag: color-mix(in srgb, var(--seed-fg) 48%, var(--seed-surface));
+
+      /* 调色板源色（供浅/深两套主题共同引用） */
+      --c-white: #ffffff;
+      --c-green: #22c55e;
+      --c-amber: #f59e0b;
+      --c-red: #ef4444;
+      --c-shadow: #0d0d0f;
+      --c-dark-bg: #0f0f11;
+      --c-dark-fg: #f0f0f0;
+      --c-dark-surface: #17171a;
+      --c-primary-dark: #6ea8fe;
+
+      --radius: var(--seed-radius);
+      --radius-sm: calc(var(--seed-radius) * 0.55);
+      --radius-lg: calc(var(--seed-radius) * 1.3);
+      --font-ui: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+      --font-read: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-display: Georgia, "Songti SC", "Noto Serif SC", "SimSun", serif;
+      --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Code", Consolas, Menlo, monospace;
+      --shadow-card: 0 1px 2px color-mix(in srgb, var(--c-shadow) 5%, transparent);
+      --shadow-pop: 0 12px 40px color-mix(in srgb, var(--c-shadow) 12%, transparent);
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* 深色主题：仅交换种子值与描边/阴影强度，派生规则不变 */
+    [data-theme="dark"] {
+      --seed-bg: var(--c-dark-bg);
+      --seed-fg: var(--c-dark-fg);
+      --seed-primary: var(--c-primary-dark);
+      --seed-surface: var(--c-dark-surface);
+      --border-strength: 14%;
+      --border-strength-strong: 22%;
+      --shadow-card: 0 1px 2px color-mix(in srgb, var(--c-shadow) 40%, transparent);
+      --shadow-pop: 0 12px 40px color-mix(in srgb, var(--c-shadow) 55%, transparent);
+    }
+
+    /* ============ 基础 ============ */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-ui);
+      font-size: 15px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      transition: background 0.25s var(--ease-out), color 0.25s var(--ease-out);
+    }
+    ::selection { background: color-mix(in srgb, var(--seed-accent) 24%, transparent); }
+    button { font-family: inherit; cursor: pointer; }
+    input, textarea { font-family: inherit; color: var(--fg); }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+
+    .num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+    .caps { text-transform: uppercase; letter-spacing: 0.07em; font-size: 11px; font-weight: 500; }
+
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+    /* ============ 顶部导航 ============ */
+    .topbar {
+      position: sticky; top: 0; z-index: 60;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brand-mark {
+      width: 30px; height: 30px; border-radius: 9px; flex: none;
+      background: var(--fg); color: var(--bg);
+      display: grid; place-items: center;
+    }
+    .brand-mark svg { width: 16px; height: 16px; }
+    .brand-name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+    .brand-tag {
+      font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--muted); border: 1px solid var(--border-strong); border-radius: 999px;
+      padding: 2px 8px; white-space: nowrap;
+    }
+    .topbar-actions { display: flex; align-items: center; gap: 8px; }
+
+    .tabs { display: flex; gap: 2px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+    .tab {
+      border: 0; background: transparent; color: var(--muted);
+      font-size: 13px; font-weight: 500; letter-spacing: 0.01em;
+      padding: 6px 14px; border-radius: 999px;
+      transition: color 0.18s, background 0.18s;
+      white-space: nowrap;
+    }
+    .tab:hover { color: var(--fg); }
+    .tab.active { background: var(--surface); color: var(--fg); box-shadow: var(--shadow-card); }
+
+    .icon-btn {
+      width: 34px; height: 34px; border-radius: 10px; flex: none;
+      border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+      display: grid; place-items: center;
+      transition: color 0.18s, border-color 0.18s, transform 0.12s;
+    }
+    .icon-btn:hover { color: var(--fg); border-color: var(--border-strong); }
+    .icon-btn:active { transform: scale(0.94); }
+    .icon-btn svg { width: 16px; height: 16px; }
+
+    .ghost-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+      font-size: 12px; font-weight: 500; letter-spacing: 0.02em;
+      padding: 7px 12px; border-radius: 10px;
+      transition: color 0.18s, border-color 0.18s, background 0.18s;
+      text-decoration: none;
+    }
+    .ghost-btn:hover { color: var(--fg); border-color: var(--border-strong); background: var(--surface-2); text-decoration: none; }
+    .ghost-btn svg { width: 13px; height: 13px; }
+
+    /* ============ 命令条（首屏锚点） ============ */
+    .hero { padding: 44px 0 8px; }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.18;
+      max-width: 22ch;
+    }
+    .hero-sub { color: var(--muted); font-size: 14px; margin-top: 10px; max-width: 60ch; }
+
+    .cmdbar {
+      margin-top: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-pop);
+      padding: 8px;
+      display: flex; gap: 8px; align-items: stretch;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .cmdbar:focus-within { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); }
+    .cmdbar-icon { align-self: center; margin-left: 12px; color: var(--faint); flex: none; width: 18px; height: 18px; }
+    .cmdbar input {
+      flex: 1; min-width: 0; border: 0; background: transparent; outline: none;
+      font-size: 15px; padding: 12px 8px;
+    }
+    .cmdbar input::placeholder { color: var(--faint); }
+    .run-btn {
+      flex: none; display: inline-flex; align-items: center; gap: 8px;
+      background: var(--btn-bg); color: var(--btn-fg); border: 0;
+      font-size: 14px; font-weight: 600; letter-spacing: 0.01em;
+      padding: 0 22px; border-radius: calc(var(--radius-lg) - 6px);
+      transition: background 0.18s, transform 0.12s, opacity 0.18s;
+    }
+    .run-btn:hover:not(:disabled) { background: var(--btn-hover); }
+    .run-btn:active:not(:disabled) { transform: translateY(1px); }
+    .run-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .run-btn svg { width: 15px; height: 15px; }
+
+    .options-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px;
+      padding: 14px 6px 0; font-size: 13px; color: var(--muted);
+    }
+    .opt { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+    .opt input { position: absolute; opacity: 0; pointer-events: none; }
+    .opt .box {
+      width: 16px; height: 16px; border-radius: 5px; flex: none;
+      border: 1.5px solid var(--border-strong); background: var(--surface);
+      display: grid; place-items: center; color: transparent;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .opt .box svg { width: 11px; height: 11px; }
+    .opt input:checked + .box { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+    .opt input:focus-visible + .box { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .opt:hover .box { border-color: var(--fg); }
+
+    .linklike {
+      border: 0; background: none; color: var(--muted); font-size: 13px; padding: 0;
+      text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px;
+      transition: color 0.15s;
+    }
+    .linklike:hover { color: var(--fg); }
+
+    .samples { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+    .samples-label { color: var(--faint); font-size: 12px; }
+    .chip {
+      border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+      font-size: 12px; padding: 4px 10px; border-radius: 999px;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .chip:hover { color: var(--fg); border-color: var(--border-strong); background: var(--surface-2); }
+
+    .paste-box { margin-top: 14px; display: none; }
+    .paste-box.open { display: block; animation: fade-up 0.28s var(--ease-out); }
+    .paste-box textarea {
+      width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; font-size: 13px; line-height: 1.7; font-family: var(--font-mono); color: var(--fg);
+      resize: vertical; min-height: 120px; outline: none;
+      transition: border-color 0.2s;
+    }
+    .paste-box textarea:focus { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); }
+    .paste-box textarea::placeholder { color: var(--faint); font-family: var(--font-ui); }
+
+    /* ============ 示例数据提示条 ============ */
+    .demo-note {
+      margin-top: 20px; display: none;
+      align-items: center; gap: 10px;
+      font-size: 12.5px; color: var(--muted);
+      background: var(--surface-2); border: 1px dashed var(--border-strong);
+      border-radius: 999px; padding: 6px 8px 6px 16px; width: fit-content; max-width: 100%;
+    }
+    .demo-note.show { display: inline-flex; animation: fade-up 0.28s var(--ease-out); }
+    .demo-note svg { width: 14px; height: 14px; color: var(--faint); flex: none; }
+    .demo-note button {
+      border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg);
+      font-size: 12px; padding: 3px 12px; border-radius: 999px;
+    }
+    .demo-note button:hover { background: var(--surface-3); }
+
+    /* ============ 流水线时间轴 ============ */
+    .pipeline {
+      margin-top: 24px; display: none;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card); padding: 18px 22px 14px;
+    }
+    .pipeline.show { display: block; animation: fade-up 0.32s var(--ease-out); }
+    .pipeline-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .pipeline-head .caps { color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); animation: breathe 1.8s ease-in-out infinite; }
+    @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+    .steps { display: flex; align-items: flex-start; gap: 0; overflow-x: auto; padding-bottom: 4px; }
+    .step { display: flex; align-items: center; flex: none; }
+    .step-node { display: flex; flex-direction: column; align-items: center; gap: 7px; width: 92px; }
+    .step-dot {
+      width: 26px; height: 26px; border-radius: 50%; flex: none;
+      border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--faint);
+      display: grid; place-items: center;
+      transition: all 0.3s var(--ease-out);
+    }
+    .step-dot svg { width: 12px; height: 12px; }
+    .step-label { font-size: 12px; color: var(--faint); white-space: nowrap; transition: color 0.3s; }
+    .step-link { height: 1.5px; flex: 1; min-width: 18px; background: var(--border-strong); margin-top: -32px; align-self: flex-start; position: relative; top: 13px; transition: background 0.3s; }
+    .step.active .step-dot { border-color: var(--primary); color: var(--primary); box-shadow: 0 0 0 4px var(--ring); animation: breathe 1.6s ease-in-out infinite; }
+    .step.active .step-label { color: var(--fg); font-weight: 500; }
+    .step.done .step-dot { border-color: var(--ok-line); background: var(--ok-bg); color: var(--ok); animation: none; }
+    .step.done .step-label { color: var(--muted); }
+    .step.done + .step .step-link, .step-link.done { background: var(--ok-line); }
+    .step.error .step-dot { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); animation: none; }
+    .step.error .step-label { color: var(--danger); font-weight: 500; }
+
+    .pipeline-log {
+      margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px;
+      display: flex; flex-direction: column; gap: 3px; max-height: 108px; overflow-y: auto;
+    }
+    .log-line { font-family: var(--font-mono); font-size: 11.5px; color: var(--faint); display: flex; gap: 10px; }
+    .log-line .t { color: var(--faint); opacity: 0.7; flex: none; }
+    .log-line.err { color: var(--danger); }
+    .log-line.ok { color: var(--ok); }
+
+    /* ============ 结果区 ============ */
+    .results { margin-top: 24px; margin-bottom: 72px; display: none; grid-template-columns: 1fr; gap: 20px; }
+    .results.show { display: grid; animation: fade-up 0.32s var(--ease-out); }
+    @media (min-width: 1024px) { .results { grid-template-columns: 360px 1fr; align-items: start; } }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+    }
+    .card-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+    }
+    .card-title { font-size: 13.5px; font-weight: 600; letter-spacing: 0.01em; display: flex; align-items: center; gap: 8px; }
+    .card-title svg { width: 15px; height: 15px; color: var(--muted); }
+
+    /* 断言列 */
+    .claims-col { display: flex; flex-direction: column; gap: 20px; position: sticky; top: 84px; }
+
+    .conf-bar-wrap { padding: 14px 20px 4px; }
+    .conf-bar { display: flex; height: 6px; border-radius: 999px; overflow: hidden; background: var(--surface-3); }
+    .conf-bar .seg-ok { background: var(--ok); } .conf-bar .seg-warn { background: var(--warn); }
+    .conf-bar .seg-danger { background: var(--danger); } .conf-bar .seg-neutral { background: var(--faint); }
+    .conf-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+    .conf-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .conf-legend i { width: 8px; height: 8px; border-radius: 3px; display: inline-block; }
+
+    .claims-list { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; max-height: 620px; overflow-y: auto; }
+    .claim {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+      animation: fade-up 0.3s var(--ease-out);
+    }
+    .claim.ok { background: var(--ok-bg); border-color: var(--ok-line); }
+    .claim.warn { background: var(--warn-bg); border-color: var(--warn-line); }
+    .claim.danger { background: var(--danger-bg); border-color: var(--danger-line); }
+    .claim.neutral { background: var(--surface-2); }
+    .claim-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .claim-id { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.02em; color: var(--muted); }
+    .claim-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 500; letter-spacing: 0.01em;
+      border-radius: 999px; padding: 2px 9px; white-space: nowrap;
+    }
+    .claim-badge svg { width: 11px; height: 11px; }
+    .claim.ok .claim-badge { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+    .claim.warn .claim-badge { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+    .claim.danger .claim-badge { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+    .claim.neutral .claim-badge { color: var(--muted); background: var(--surface-3); }
+    .claim-text { font-size: 13px; line-height: 1.65; }
+    .claim-reason {
+      font-size: 12px; line-height: 1.65; color: var(--muted);
+      border-top: 1px dashed var(--border-strong); padding-top: 8px;
+    }
+    .claim-reason b { color: var(--fg); font-weight: 500; }
+
+    /* 元数据卡 */
+    .meta-card { padding: 6px 20px 10px; }
+    .meta-row { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px dashed var(--border); font-size: 12.5px; }
+    .meta-row:last-child { border-bottom: 0; }
+    .meta-row .k { color: var(--faint); }
+    .meta-row .v { color: var(--fg); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+
+    /* 报告区 */
+    .report-col { display: flex; flex-direction: column; gap: 20px; }
+    .report-card { padding: 0; overflow: hidden; }
+    .report-head {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+      padding: 22px 28px 18px; border-bottom: 1px solid var(--border);
+    }
+    .report-title {
+      font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.35;
+    }
+    .report-actions { display: flex; gap: 8px; flex: none; }
+
+    .report-body { padding: 26px 32px 34px; min-height: 480px; }
+    .report-md { font-size: calc(14.5px * var(--font-scale, 1)); line-height: 1.8; color: color-mix(in srgb, var(--fg) 88%, var(--surface)); max-width: 72ch; }
+    .report-md h1, .report-md h2, .report-md h3 { font-family: var(--font-ui); line-height: 1.35; margin: 1.5em 0 0.6em; color: var(--fg); }
+    .report-md h1 { font-size: 19px; font-weight: 600; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .report-md h2 { font-size: 16.5px; font-weight: 600; }
+    .report-md h3 { font-size: 14.5px; font-weight: 600; color: var(--muted); }
+    .report-md h1:first-child, .report-md > :first-child { margin-top: 0; }
+    .report-md p { margin: 0.6em 0; }
+    .report-md ul, .report-md ol { padding-left: 1.4em; margin: 0.6em 0; }
+    .report-md li { margin: 0.3em 0; }
+    .report-md li::marker { color: var(--faint); }
+    .report-md strong { font-weight: 600; color: var(--fg); }
+    .report-md table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 13px; }
+    .report-md th, .report-md td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; line-height: 1.55; }
+    .report-md th { background: var(--surface-2); font-weight: 500; font-size: 12px; letter-spacing: 0.02em; color: var(--muted); }
+    .report-md blockquote { border-left: 2px solid var(--border-strong); padding: 2px 0 2px 14px; margin: 1em 0; color: var(--muted); }
+    .report-md code { font-family: var(--font-mono); font-size: 0.88em; background: var(--surface-3); border-radius: 5px; padding: 2px 6px; }
+    .report-md pre { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; overflow-x: auto; margin: 1em 0; }
+    .report-md pre code { background: none; padding: 0; }
+    .report-md hr { border: 0; border-top: 1px solid var(--border); margin: 1.6em 0; }
+
+    /* 流式渲染中的光标 */
+    .streaming::after {
+      content: ""; display: inline-block; width: 7px; height: 1.05em; margin-left: 3px;
+      background: var(--seed-accent); vertical-align: text-bottom;
+      animation: breathe 1s ease-in-out infinite;
+    }
+
+    /* 占位 / 加载 / 错误态 */
+    .placeholder { color: var(--faint); font-size: 13px; padding: 8px 4px; }
+    .idle-hint {
+      padding: 56px 24px; text-align: center; color: var(--faint);
+    }
+    .idle-hint svg { width: 28px; height: 28px; margin-bottom: 12px; opacity: 0.7; }
+    .idle-hint p { font-size: 13.5px; max-width: 40ch; margin: 0 auto; line-height: 1.7; }
+    .err-card {
+      background: var(--danger-bg); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+      border-radius: var(--radius); padding: 20px 22px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .err-card .err-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; color: var(--danger); }
+    .err-card .err-title svg { width: 16px; height: 16px; }
+    .err-card .err-detail { font-size: 13px; color: var(--muted); line-height: 1.7; }
+    .err-guide {
+      background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+      padding: 12px 16px; font-size: 12.5px; line-height: 1.7; color: var(--muted);
+    }
+    .err-guide b { color: var(--fg); font-weight: 600; }
+
+    /* ============ 检索标签页 ============ */
+    .searchbar { margin-top: 32px; display: flex; gap: 10px; }
+    .searchbar .cmdbar { margin-top: 0; flex: 1; box-shadow: var(--shadow-card); }
+    .search-desc { color: var(--muted); font-size: 13px; margin-top: 12px; }
+    .search-results { margin-top: 20px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 72px; }
+    .result-card { padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; animation: fade-up 0.3s var(--ease-out); }
+    .result-top { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+    .result-title { font-size: 14.5px; font-weight: 600; cursor: pointer; }
+    .result-title:hover { color: var(--primary); }
+    .sim-badge {
+      flex: none; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.02em;
+      color: var(--muted); background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 999px; padding: 3px 10px;
+    }
+    .result-summary { font-size: 13px; line-height: 1.7; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .result-meta { display: flex; justify-content: space-between; gap: 12px; font-size: 11.5px; color: var(--faint); font-family: var(--font-mono); }
+
+    .history-list { display: flex; flex-direction: column; }
+    .history-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .history-item:last-child { border-bottom: 0; }
+    .history-item:hover { background: var(--surface-2); }
+    .history-item .h-title { font-size: 13.5px; font-weight: 500; }
+    .history-item .h-sum { font-size: 12px; color: var(--faint); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60ch; }
+    .history-item .h-meta { flex: none; text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--faint); line-height: 1.7; }
+
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* 滚动条 */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    @media (max-width: 760px) {
+      .hero-title { font-size: 26px; }
+      .samples { margin-left: 0; }
+      .cmdbar { flex-wrap: wrap; }
+      .run-btn { width: 100%; justify-content: center; padding: 12px; }
+      .brand-tag { display: none; }
+      .report-body { padding: 20px 18px 28px; }
+      .claims-col { position: static; }
+      .history-item .h-sum { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header class="topbar" data-component="Top Navigation" data-od-id="topbar">
+    <div class="wrap topbar-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 7h12M4 12h9M4 17h13"/><path d="M19 10l3 3-3 3"/>
+          </svg>
+        </div>
+        <span class="brand-name">OmniDigest</span>
+        <span class="brand-tag">Agentic Fact-Checker</span>
+      </div>
+      <div class="topbar-actions">
+        <nav class="tabs" aria-label="工作区切换" data-component="Tab Switcher" data-od-id="tabs">
+          <button id="tab-digest-btn" class="tab active" onclick="switchTab('digest')">智能脱水分析</button>
+          <button id="tab-search-btn" class="tab" onclick="switchTab('search')">语义反查与历史</button>
+        </nav>
+        <button id="theme-toggle" class="icon-btn" onclick="toggleTheme()" title="切换深浅主题" aria-label="切换深浅主题">
+          <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+        </button>
+        <button class="ghost-btn" onclick="window.open('/docs', '_blank')" title="打开后端 Swagger 文档（需启动 FastAPI 服务）" data-component="API Entry" data-od-id="api-entry">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+          API
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap" data-component="Main Workspace" data-od-id="main">
+
+    <!-- 标签一：智能脱水分析 -->
+    <section id="section-digest" data-component="Digest Workspace" data-od-id="digest-workspace">
+
+      <div class="hero" data-component="Command Hero" data-od-id="command-hero">
+        <h1 class="hero-title">把喧嚣的长文，脱成一份可核验的结论。</h1>
+        <p class="hero-sub">粘贴任意公众号或知乎长文链接，智能体完成正文清洗、断言提取与联网交叉核验，以红黄绿置信度生成脱水报告。</p>
+        <div class="cmdbar" data-component="Digest Command Bar" data-od-id="digest-cmdbar">
+          <svg class="cmdbar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <input
+            id="url-input"
+            type="text"
+            placeholder="粘贴微信公众号 / 知乎专栏 / 任意公开文章 URL…"
+            aria-label="文章 URL"
+            onkeydown="if(event.key==='Enter') startDigest()"
+          />
+          <button id="start-btn" class="run-btn" onclick="startDigest()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            <span id="btn-text">开始脱水分析</span>
+          </button>
+        </div>
+        <div class="options-row">
+          <label class="opt"><input type="checkbox" id="check-fact" checked><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>联网事实核验</label>
+          <label class="opt"><input type="checkbox" id="check-refresh"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>跳过缓存</label>
+          <button class="linklike" onclick="toggleCustomContent()">直接粘贴正文（降级模式）</button>
+          <div class="samples">
+            <span class="samples-label">示例</span>
+            <button class="chip" onclick="fillExample('wechat')">微信爆款</button>
+            <button class="chip" onclick="fillExample('zhihu')">知乎技术</button>
+            <button class="chip" onclick="fillExample('tech')">硬核科技</button>
+          </div>
+        </div>
+        <div id="custom-content-box" class="paste-box">
+          <textarea id="custom-content" rows="5" placeholder="在此直接粘贴文章正文，系统将跳过爬虫阶段，直接进入断言提取与事实核查…"></textarea>
+        </div>
+      </div>
+
+      <!-- 示例数据提示条 -->
+      <div id="demo-note" class="demo-note" data-component="Demo Notice" data-od-id="demo-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        <span>当前展示为内置示例数据，无需后端即可完整演示</span>
+        <button onclick="clearAll()">清空，分析我自己的文章</button>
+      </div>
+
+      <!-- 执行流水线 -->
+      <div id="pipeline-panel" class="pipeline" data-component="Pipeline Timeline" data-od-id="pipeline">
+        <div class="pipeline-head">
+          <span class="caps"><span class="live-dot" id="pipeline-dot"></span>Agentic 执行流水线 · SSE</span>
+          <span id="pipeline-timer" class="num" style="font-size:12px;color:var(--muted)">0.0s</span>
+        </div>
+        <div class="steps" id="steps-row" role="list" aria-label="执行阶段"></div>
+        <div class="pipeline-log" id="pipeline-log" aria-live="polite"></div>
+      </div>
+
+      <!-- 结果双栏 -->
+      <div id="result-container" class="results" data-component="Analysis Results" data-od-id="results">
+
+        <div class="claims-col">
+          <div class="card" data-component="Claims Card" data-od-id="claims-card">
+            <div class="card-head">
+              <span class="card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                事实断言核验
+              </span>
+              <span id="claim-count-badge" class="sim-badge num">0 项</span>
+            </div>
+            <div class="conf-bar-wrap" id="conf-wrap">
+              <div class="conf-bar" id="conf-bar" role="img" aria-label="置信度分布"></div>
+              <div class="conf-legend" id="conf-legend"></div>
+            </div>
+            <div id="claims-list" class="claims-list" data-component="Claims List" data-od-id="claims-list">
+              <p class="placeholder">正在提取文本中的事实断言…</p>
+            </div>
+          </div>
+
+          <div class="card meta-card" data-component="Source Metadata" data-od-id="meta">
+            <div class="meta-row"><span class="k">解析来源</span><span class="v num" id="meta-platform">—</span></div>
+            <div class="meta-row"><span class="k">文章作者</span><span class="v" id="meta-author">—</span></div>
+            <div class="meta-row"><span class="k">有效字数</span><span class="v num" id="meta-tokens">—</span></div>
+            <div class="meta-row"><span class="k">缓存状态</span><span class="v num" id="meta-cached">—</span></div>
+          </div>
+        </div>
+
+        <div class="report-col">
+          <div class="card report-card" data-component="Report Card" data-od-id="report-card">
+            <div class="report-head">
+              <h2 id="report-title" class="report-title" data-component="Report Title" data-od-id="report-title">脱水报告生成中…</h2>
+              <div class="report-actions">
+                <button id="copy-btn" class="ghost-btn" onclick="copyReport()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  复制 Markdown
+                </button>
+              </div>
+            </div>
+            <div class="report-body">
+              <div id="report-content" class="report-md" data-component="Report Content" data-od-id="report-content"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 标签二：语义反查与历史 -->
+    <section id="section-search" class="hidden" style="display:none" data-component="Search Workspace" data-od-id="search-workspace">
+      <div class="searchbar" data-component="Search Command Bar" data-od-id="search-cmdbar">
+        <div class="cmdbar">
+          <svg class="cmdbar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input id="search-input" type="text" placeholder="用自然语言提问，例如「固态电池有什么最新技术突破？」" aria-label="语义检索问题" onkeydown="if(event.key==='Enter') executeSearch()" />
+          <button class="run-btn" onclick="executeSearch()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <span>语义检索</span>
+          </button>
+        </div>
+      </div>
+      <p class="search-desc">基于 pgvector 向量库，在所有已分析落库的文章中检索最相关的段落与脱水论点。</p>
+
+      <div id="search-results" class="search-results" data-component="Search Results" data-od-id="search-results">
+        <div class="card idle-hint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <p>先在「智能脱水分析」中分析几篇文章，之后即可在这里用自然语言跨文章反查历史论点。</p>
+        </div>
+      </div>
+
+      <div class="card" data-component="History Panel" data-od-id="history">
+        <div class="card-head">
+          <span class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+            最近脱水记录
+          </span>
+          <button class="ghost-btn" onclick="loadHistory()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>
+            刷新
+          </button>
+        </div>
+        <div id="history-list" class="history-list">
+          <p class="placeholder" style="padding:16px 20px">切换到此标签时自动加载历史列表…</p>
+        </div>
+      </div>
+      <div style="height:72px"></div>
+    </section>
+
+  </main>
+
+  <script>
+    /* ================= 主题 ================= */
+    let themeMode = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
+    function applyTheme() {
+      document.documentElement.setAttribute("data-theme", themeMode);
+      const icon = document.getElementById("theme-icon");
+      icon.innerHTML = themeMode === "dark"
+        ? '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>'
+        : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    }
+    function toggleTheme() { themeMode = themeMode === "dark" ? "light" : "dark"; applyTheme(); }
+    applyTheme();
+
+    /* ================= 图标库 ================= */
+    const ICONS = {
+      check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+      alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+      x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+      minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>',
+      dot: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>'
+    };
+    const BADGE = {
+      green: { cls: "ok", icon: ICONS.check, text: "证据吻合" },
+      yellow: { cls: "warn", icon: ICONS.alert, text: "存疑待验证" },
+      red: { cls: "danger", icon: ICONS.x, text: "违背事实" },
+      gray: { cls: "neutral", icon: ICONS.minus, text: "未核验" }
+    };
+
+    /* ================= 通用状态 ================= */
+    let currentRawReport = "";
+    let timerInterval = null;
+    let startTime = 0;
+    let isDemo = false;
+
+    const PIPE_STAGES = [
+      { id: "request", label: "发起请求" },
+      { id: "crawl", label: "爬取正文" },
+      { id: "extract", label: "断言提取" },
+      { id: "route", label: "条件路由" },
+      { id: "verify", label: "联网核验" },
+      { id: "synth", label: "报告合成" }
+    ];
+
+    function buildStepsRow() {
+      const row = document.getElementById("steps-row");
+      row.innerHTML = PIPE_STAGES.map((s, i) => `
+        <div class="step" id="step-${s.id}" role="listitem">
+          <div class="step-node">
+            <span class="step-dot" aria-hidden="true">${ICONS.dot}</span>
+            <span class="step-label">${s.label}</span>
+          </div>
+          ${i < PIPE_STAGES.length - 1 ? '<span class="step-link"></span>' : ""}
+        </div>
+      `).join("");
+    }
+
+    function setStep(id, state) {
+      const el = document.getElementById("step-" + id);
+      if (!el) return;
+      el.classList.remove("active", "done", "error");
+      if (state) el.classList.add(state);
+      const dot = el.querySelector(".step-dot");
+      if (state === "done") dot.innerHTML = ICONS.check;
+      else if (state === "error") dot.innerHTML = ICONS.x;
+      else if (state === "active") dot.innerHTML = ICONS.dot;
+      else dot.innerHTML = ICONS.dot;
+      if (state === "done") {
+        const link = el.querySelector(".step-link");
+        if (link) link.classList.add("done");
+      }
+    }
+
+    function resetSteps() { buildStepsRow(); }
+
+    function stepDoneBefore(id) {
+      const idx = PIPE_STAGES.findIndex(s => s.id === id);
+      for (let i = 0; i < idx; i++) setStep(PIPE_STAGES[i].id, "done");
+    }
+
+    function mapStatusToStep(msg) {
+      if (/缓存|cache/i.test(msg)) return { id: "request", done: true };
+      if (/爬取|抓取|正文|crawl|fetch/i.test(msg)) return { id: "crawl" };
+      if (/断言|claim|提取/i.test(msg)) return { id: "extract" };
+      if (/路由|判断|route/i.test(msg)) return { id: "route" };
+      if (/核验|搜索|比对|tavily|verify|search|证据/i.test(msg)) return { id: "verify" };
+      if (/合成|生成|报告|synthes|report/i.test(msg)) return { id: "synth" };
+      return null;
+    }
+
+    function addLog(text, kind) {
+      const log = document.getElementById("pipeline-log");
+      const line = document.createElement("div");
+      line.className = "log-line" + (kind ? " " + kind : "");
+      const t = ((Date.now() - startTime) / 1000).toFixed(1);
+      line.innerHTML = `<span class="t num">[${t}s]</span><span></span>`;
+      line.lastChild.textContent = text;
+      log.appendChild(line);
+      while (log.children.length > 30) log.removeChild(log.firstChild);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    /* ================= 标签切换 ================= */
+    function switchTab(tab) {
+      const digest = document.getElementById("section-digest");
+      const search = document.getElementById("section-search");
+      const dBtn = document.getElementById("tab-digest-btn");
+      const sBtn = document.getElementById("tab-search-btn");
+      if (tab === "digest") {
+        digest.style.display = ""; search.style.display = "none";
+        dBtn.classList.add("active"); sBtn.classList.remove("active");
+      } else {
+        digest.style.display = "none"; search.style.display = "";
+        sBtn.classList.add("active"); dBtn.classList.remove("active");
+        loadHistory();
+      }
+    }
+
+    /* ================= 输入辅助 ================= */
+    function toggleCustomContent() {
+      document.getElementById("custom-content-box").classList.toggle("open");
+    }
+
+    function fillExample(type) {
+      const urlInput = document.getElementById("url-input");
+      const content = document.getElementById("custom-content");
+      const box = document.getElementById("custom-content-box");
+      if (type === "wechat") {
+        urlInput.value = "https://mp.weixin.qq.com/s/sample_article_omni_digest_101";
+        content.value = "【重磅突破】全球首款全固态电池能量密度飙升至 500Wh/kg！\n今日，某新能源联合实验室宣布在全固态锂电池领域取得颠覆性突破，其能量密度实测达到 500Wh/kg，相比现有三元锂电池提升了足足 120%。在零下 40 度极寒工况下容量保持率仍高达 92%，充电 10 分钟即可补充 80% 电量。\n该项目负责人表示，这一突破彻底解决了电动汽车冬季里程衰减痛点，计划于明年二季度实现百兆瓦级规模化量产，届时电动车综合续航将普遍突破 1200 公里，成本有望降低 35%。";
+        box.classList.add("open");
+      } else if (type === "zhihu") {
+        urlInput.value = "https://zhuanlan.zhihu.com/p/678901234";
+        content.value = "如何客观评价近期大模型推理架构的新演进？\n大语言模型推理阶段的核心瓶颈长期在于显存带宽（Memory Wall）。近期业内提出的一系列推测解码（Speculative Decoding）技术，通过小型草稿模型与大型目标模型的验证机制结合，使端到端推理吞吐量提升了 2.5 到 3.2 倍，而输出完全无损。\n同时，配合 KV Cache 量化技术（从 FP16 压缩至 INT4），显存占用骤降 65%，单卡即可运行 70B 参数规模的稠密模型。";
+        box.classList.add("open");
+      } else {
+        urlInput.value = "https://www.nature.com/articles/s41586-quantum-breakthrough";
+        content.value = "";
+        box.classList.remove("open");
+      }
+    }
+
+    /* ================= 渲染：断言 ================= */
+    function renderClaims(claims) {
+      const container = document.getElementById("claims-list");
+      document.getElementById("claim-count-badge").textContent = `${claims.length} 项`;
+      container.innerHTML = "";
+
+      // 置信度分布条
+      const counts = { green: 0, yellow: 0, red: 0, gray: 0 };
+      claims.forEach(c => { if (counts[c.confidence_level] !== undefined) counts[c.confidence_level]++; });
+      const total = claims.length || 1;
+      const bar = document.getElementById("conf-bar");
+      const legend = document.getElementById("conf-legend");
+      bar.innerHTML = `
+        <div class="seg-ok" style="width:${(counts.green / total) * 100}%"></div>
+        <div class="seg-warn" style="width:${(counts.yellow / total) * 100}%"></div>
+        <div class="seg-danger" style="width:${(counts.red / total) * 100}%"></div>
+        <div class="seg-neutral" style="width:${(counts.gray / total) * 100}%"></div>`;
+      bar.setAttribute("aria-label", `置信度分布：证据吻合 ${counts.green} 项，存疑 ${counts.yellow} 项，违背事实 ${counts.red} 项，未核验 ${counts.gray} 项`);
+      legend.innerHTML = `
+        <span><i style="background:var(--ok)"></i>证据吻合 <span class="num">${counts.green}</span></span>
+        <span><i style="background:var(--warn)"></i>存疑 <span class="num">${counts.yellow}</span></span>
+        <span><i style="background:var(--danger)"></i>违背 <span class="num">${counts.red}</span></span>
+        <span><i style="background:var(--faint)"></i>未核验 <span class="num">${counts.gray}</span></span>`;
+
+      claims.forEach(c => {
+        const b = BADGE[c.confidence_level] || BADGE.gray;
+        const item = document.createElement("div");
+        item.className = "claim " + b.cls;
+        item.innerHTML = `
+          <div class="claim-top">
+            <span class="claim-id">${c.claim_id} · ${c.claim_type}</span>
+            <span class="claim-badge">${b.icon}${b.text}</span>
+          </div>
+          <p class="claim-text"></p>
+          ${c.verification_reason ? `<div class="claim-reason"><b>核验依据</b> · ${escapeHtml(c.verification_reason)}</div>` : ""}`;
+        item.querySelector(".claim-text").textContent = c.text;
+        container.appendChild(item);
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+    }
+
+    function renderReportMd(md, streaming) {
+      const el = document.getElementById("report-content");
+      let html;
+      if (window.marked) html = marked.parse(md);
+      else html = "<p>" + escapeHtml(md).replace(/\n/g, "<br>") + "</p>";
+      el.innerHTML = html;
+      el.classList.toggle("streaming", !!streaming);
+    }
+
+    /* ================= 主流程：脱水分析 ================= */
+    async function startDigest() {
+      const url = document.getElementById("url-input").value.trim();
+      const customText = document.getElementById("custom-content").value.trim();
+      const enableFactCheck = document.getElementById("check-fact").checked;
+      const forceRefresh = document.getElementById("check-refresh").checked;
+
+      if (!url) {
+        document.getElementById("url-input").focus();
+        addPipelineNote("请输入有效的文章 URL");
+        return;
+      }
+
+      isDemo = false;
+      document.getElementById("demo-note").classList.remove("show");
+
+      const startBtn = document.getElementById("start-btn");
+      const btnText = document.getElementById("btn-text");
+      startBtn.disabled = true;
+      btnText.textContent = "智能体处理中…";
+
+      document.getElementById("pipeline-panel").classList.add("show");
+      document.getElementById("pipeline-log").innerHTML = "";
+      resetSteps();
+      setStep("request", "active");
+      document.getElementById("result-container").classList.add("show");
+      document.getElementById("report-title").textContent = "脱水报告生成中…";
+      renderReportMd("", false);
+      document.getElementById("claims-list").innerHTML = '<p class="placeholder">正在提取文本中的事实断言…</p>';
+      document.getElementById("conf-bar").innerHTML = "";
+      document.getElementById("conf-legend").innerHTML = "";
+      document.getElementById("claim-count-badge").textContent = "0 项";
+      currentRawReport = "";
+
+      startTime = Date.now();
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        const sec = ((Date.now() - startTime) / 1000).toFixed(1);
+        document.getElementById("pipeline-timer").textContent = sec + "s";
+      }, 100);
+
+      addLog("发起请求：" + url);
+      addPipelineNote("已发起请求，正在建立 SSE 长连接…");
+
+      const body = {
+        url: url,
+        enable_fact_check: enableFactCheck,
+        force_refresh: forceRefresh,
+        content_override: customText || null
+      };
+
+      try {
+        const response = await fetch("/api/v1/digest?stream=true", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
+          body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          const errJson = await response.json().catch(() => ({ detail: response.statusText }));
+          throw new Error(errJson.detail || "请求失败");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop();
+          for (const block of lines) parseSSEBlock(block);
+        }
+      } catch (err) {
+        markErrorState(err.message);
+        addLog("异常：" + err.message, "err");
+      } finally {
+        clearInterval(timerInterval);
+        startBtn.disabled = false;
+        btnText.textContent = "开始脱水分析";
+      }
+    }
+
+    function addPipelineNote(text) { addLog(text); }
+
+    function markErrorState(detail) {
+      setStep(mapStatusToStep(detail)?.id || "crawl", "error");
+      const el = document.getElementById("report-content");
+      el.classList.remove("streaming");
+      el.innerHTML = `<div class="err-card"><div class="err-title">${ICONS.alert}执行失败</div><div class="err-detail">${escapeHtml(detail)}</div></div>`;
+    }
+
+    function parseSSEBlock(block) {
+      if (!block.trim()) return;
+      const lines = block.split("\n");
+      let event = "message";
+      let dataLines = [];
+      for (const line of lines) {
+        if (line.startsWith("event:")) event = line.replace("event:", "").trim();
+        else if (line.startsWith("data:")) dataLines.push(line.replace("data:", "").trim());
+      }
+      const dataStr = dataLines.join("\n");
+      if (!dataStr) return;
+
+      if (event === "status") {
+        let msg = dataStr, claims = null;
+        try {
+          const obj = JSON.parse(dataStr);
+          msg = obj.message || dataStr;
+          claims = obj.claims || null;
+        } catch (e) {}
+        addLog(msg);
+        const mapped = mapStatusToStep(msg);
+        if (mapped) {
+          if (mapped.done) { PIPE_STAGES.forEach(s => setStep(s.id, "done")); }
+          else { stepDoneBefore(mapped.id); setStep(mapped.id, mapped.done ? "done" : "active"); }
+        }
+        if (claims) renderClaims(claims);
+      } else if (event === "chunk") {
+        currentRawReport += dataStr + "\n";
+        renderReportMd(currentRawReport, true);
+        stepDoneBefore("synth"); setStep("synth", "active");
+      } else if (event === "result") {
+        try {
+          const payload = JSON.parse(dataStr);
+          document.getElementById("report-title").textContent = payload.title || "脱水分析报告";
+          document.getElementById("meta-platform").textContent = payload.source_platform || "未知";
+          document.getElementById("meta-author").textContent = payload.author || "佚名";
+          document.getElementById("meta-tokens").textContent = payload.token_count + " 字符";
+          document.getElementById("meta-cached").textContent = payload.cached ? "缓存命中" : "实时计算入库";
+          if (payload.claims) renderClaims(payload.claims);
+          if (payload.final_report) { currentRawReport = payload.final_report; }
+          renderReportMd(currentRawReport, false);
+        } catch (e) {}
+      } else if (event === "error") {
+        let errDetail = dataStr;
+        try {
+          const errObj = JSON.parse(dataStr);
+          errDetail = errObj.error || errObj.detail || dataStr;
+        } catch (e) {}
+        addLog("抓取受阻：" + errDetail, "err");
+        renderErrorCard(errDetail);
+      } else if (event === "done") {
+        PIPE_STAGES.forEach(s => setStep(s.id, "done"));
+        addLog("执行完成", "ok");
+        document.getElementById("report-content").classList.remove("streaming");
+      }
+    }
+
+    function renderErrorCard(errDetail) {
+      const isAntispider = /反爬|403|zse-ck|知乎|404/.test(errDetail);
+      const el = document.getElementById("report-content");
+      el.classList.remove("streaming");
+      el.innerHTML = `
+        <div class="err-card">
+          <div class="err-title">${ICONS.alert}正文提取受阻</div>
+          <div class="err-detail">${escapeHtml(errDetail)}</div>
+          ${isAntispider ? `
+          <div class="err-guide">
+            <b>推荐解决方式</b>：该平台（如知乎 / 微信）启用了动态安全验证盾（zse-ck），自动化爬虫受限。
+            系统已为你展开上方「直接粘贴正文」输入框——在浏览器中打开文章、复制正文粘贴进来，再次点击「开始脱水分析」，即可完整体验断言提取与联网事实核验。
+          </div>` : ""}
+        </div>`;
+      if (isAntispider) {
+        const box = document.getElementById("custom-content-box");
+        box.classList.add("open");
+        const ta = document.getElementById("custom-content");
+        ta.placeholder = "将该文章的正文内容粘贴至此，然后点击「开始脱水分析」…";
+        ta.focus();
+      }
+    }
+
+    async function copyReport() {
+      if (!currentRawReport) return;
+      try {
+        await navigator.clipboard.writeText(currentRawReport);
+        const btn = document.getElementById("copy-btn");
+        const orig = btn.innerHTML;
+        btn.innerHTML = ICONS.check + "已复制";
+        setTimeout(() => { btn.innerHTML = orig; }, 1600);
+      } catch (e) {
+        addPipelineNote("复制失败：" + e.message);
+      }
+    }
+
+    /* ================= 检索与历史 ================= */
+    async function executeSearch() {
+      const query = document.getElementById("search-input").value.trim();
+      if (!query) return;
+      const container = document.getElementById("search-results");
+      container.innerHTML = '<p class="placeholder" style="padding:12px 4px">正在向量数据库中检索…</p>';
+      try {
+        const resp = await fetch("/api/v1/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: query, top_k: 5 })
+        });
+        const data = await resp.json();
+        container.innerHTML = "";
+        if (!data.results || data.results.length === 0) {
+          container.innerHTML = '<div class="card idle-hint"><p>未找到相关主题文章。请先使用「智能脱水分析」落库一些文章，再回来检索。</p></div>';
+          return;
+        }
+        data.results.forEach(item => {
+          const card = document.createElement("div");
+          card.className = "card result-card";
+          const simPct = (item.similarity * 100).toFixed(1);
+          const safeUrl = escapeHtml(item.url || "#");
+          card.innerHTML = `
+            <div class="result-top">
+              <span class="result-title" role="link" tabindex="0" onclick="window.open('${safeUrl}')" onkeydown="if(event.key==='Enter')window.open('${safeUrl}')"></span>
+              <span class="sim-badge">相似度 ${simPct}%</span>
+            </div>
+            <p class="result-summary"></p>
+            <div class="result-meta"><span>${escapeHtml(item.source_platform || "")}</span><span>${escapeHtml(String(item.created_at || "").slice(0, 19))}</span></div>`;
+          card.querySelector(".result-title").textContent = item.title;
+          card.querySelector(".result-summary").textContent = item.summary || "";
+          container.appendChild(card);
+        });
+      } catch (e) {
+        container.innerHTML = `<div class="card" style="padding:16px 20px"><div class="err-detail" style="color:var(--danger);font-size:13px">检索失败：${escapeHtml(e.message)}</div></div>`;
+      }
+    }
+
+    async function loadHistory() {
+      const listDiv = document.getElementById("history-list");
+      listDiv.innerHTML = '<p class="placeholder" style="padding:16px 20px">正在加载历史记录…</p>';
+      try {
+        const resp = await fetch("/api/v1/history?limit=10");
+        const data = await resp.json();
+        listDiv.innerHTML = "";
+        if (!data.records || data.records.length === 0) {
+          listDiv.innerHTML = '<p class="placeholder" style="padding:16px 20px">暂无历史落库文章。</p>';
+          return;
+        }
+        data.records.forEach(r => {
+          const item = document.createElement("div");
+          item.className = "history-item";
+          item.innerHTML = `
+            <div style="min-width:0">
+              <div class="h-title"></div>
+              <div class="h-sum"></div>
+            </div>
+            <div class="h-meta"><div></div><div></div></div>`;
+          item.querySelector(".h-title").textContent = r.title;
+          item.querySelector(".h-sum").textContent = String(r.summary || "").slice(0, 90);
+          item.querySelector(".h-meta").children[0].textContent = r.platform || "";
+          item.querySelector(".h-meta").children[1].textContent = String(r.created_at || "").slice(0, 10);
+          listDiv.appendChild(item);
+        });
+      } catch (e) {
+        listDiv.innerHTML = '<p class="placeholder" style="padding:16px 20px">加载历史记录失败（后端未启动或不可达）。</p>';
+      }
+    }
+
+    /* ================= 示例数据（演示模式） ================= */
+    const DEMO = {
+      title: "全固态电池「500Wh/kg 重大突破」脱水报告",
+      platform: "微信公众号",
+      author: "某新能源联合实验室",
+      tokens: "1,842 字符",
+      cached: "示例 · 缓存命中",
+      elapsed: "8.6s",
+      logs: [
+        ["请求已受理：URL 规范化与鉴权通过", ""],
+        ["正文抓取完成：微信适配器 · 1,842 字 · 广告与导航节点已剔除", "ok"],
+        ["断言提取完成：识别 5 项关键事实断言（3 项硬数据）", "ok"],
+        ["条件路由：3 项触发联网交叉核验，2 项常规观点直接放行", ""],
+        ["Tavily 检索完成：2 源吻合 · 1 源冲突 · 2 源无信源", "ok"],
+        ["报告合成完成，已写入 pgvector 向量库", "ok"]
+      ],
+      claims: [
+        {
+          claim_id: "C1", claim_type: "数据断言", confidence_level: "red",
+          text: "全固态电池能量密度实测达 500Wh/kg，较现有三元锂电池提升 120%。",
+          verification_reason: "公开报道中全固态电池样品能量密度最高约 400Wh/kg（丰田、QuantumScape 2024–2025 区间），且均为实验室小样本数据；「500Wh/kg + 提升 120%」未检索到任何可查证信源，疑似混淆实验室指标与量产指标。"
+        },
+        {
+          claim_id: "C2", claim_type: "数据断言", confidence_level: "yellow",
+          text: "零下 40 度极寒工况下容量保持率仍高达 92%。",
+          verification_reason: "固态电解质低温性能确有优势，但公开文献中 -40°C 容量保持率多处于 60%–85% 区间，92% 显著超出常见实验结果，未找到支持信源。"
+        },
+        {
+          claim_id: "C3", claim_type: "数据断言", confidence_level: "yellow",
+          text: "充电 10 分钟即可补充 80% 电量。",
+          verification_reason: "快充能力与固态体系兼容，但该数值无信源支撑；行业同类快充指标通常伴随温升与循环寿命衰减的限定条件，原文未提及。"
+        },
+        {
+          claim_id: "C4", claim_type: "商业预测", confidence_level: "gray",
+          text: "明年二季度实现百兆瓦级规模化量产，综合续航将普遍突破 1200 公里。",
+          verification_reason: "属前瞻性商业声明，当前无法证伪。全固态电池业内主流预期量产时间在 2027 年之后，建议关注官方后续公告。"
+        },
+        {
+          claim_id: "C5", claim_type: "行业共识", confidence_level: "green",
+          text: "全固态电池可显著提升能量密度与安全性，是动力电池的确定性方向。",
+          verification_reason: "与宁德时代、丰田、Solid Power 等厂商公开技术路线图及多家券商研报口径一致。"
+        }
+      ],
+      report: `## 一句话结论
+
+这是一篇**用真实的产业方向包装夸大数据**的流量型文章：方向（全固态电池）是真的，核心数据（500Wh/kg、-40°C 92% 保持率、10 分钟 80%）均无法核验或明显超出公开区间。
+
+## 核心论点骨架
+
+1. 某实验室宣布全固态电池能量密度突破 500Wh/kg（**违背事实 · C1**）
+2. 极寒工况容量保持率 92%、10 分钟快充 80%（**存疑 · C2 C3**）
+3. 明年二季度百兆瓦级量产、续航 1200 公里（**未核验的前瞻声明 · C4**）
+4. 全固态是动力电池确定性方向（**证据吻合 · C5**）
+
+## 事实核验摘要
+
+| 断言 | 结论 | 依据 |
+| --- | --- | --- |
+| C1 · 500Wh/kg | **违背事实** | 行业样品最高约 400Wh/kg，无任何信源 |
+| C2 · -40°C 92% | **存疑** | 文献常见区间 60%–85% |
+| C3 · 10min 80% | **存疑** | 无信源，缺限定条件 |
+| C4 · 明年量产 | **未核验** | 前瞻声明，主流预期 2027+ |
+| C5 · 产业方向 | **证据吻合** | 与多家厂商路线图一致 |
+
+## 阅读建议
+
+文章的**定性判断可信，定量数据全部存疑**。若用于决策，请等待具备署名、实验条件与第三方复测的数据发布；「明年二季度量产」的说法与产业主流时间表偏差 2 年以上。`
+    };
+
+    function loadDemo() {
+      isDemo = true;
+      document.getElementById("url-input").value = "https://mp.weixin.qq.com/s/sample_article_omni_digest_101";
+
+      // 流水线：完成态
+      buildStepsRow();
+      PIPE_STAGES.forEach(s => setStep(s.id, "done"));
+      document.getElementById("pipeline-panel").classList.add("show");
+      document.getElementById("pipeline-dot").style.animation = "none";
+      document.getElementById("pipeline-timer").textContent = DEMO.elapsed;
+      startTime = Date.now() - 8600;
+      const log = document.getElementById("pipeline-log");
+      log.innerHTML = "";
+      DEMO.logs.forEach(([msg, kind]) => {
+        const line = document.createElement("div");
+        line.className = "log-line" + (kind ? " " + kind : "");
+        line.innerHTML = `<span class="t num">[--]</span><span></span>`;
+        line.firstChild.textContent = `[${DEMO.elapsed}]`;
+        line.lastChild.textContent = msg;
+        log.appendChild(line);
+      });
+
+      // 结果
+      document.getElementById("result-container").classList.add("show");
+      document.getElementById("report-title").textContent = DEMO.title;
+      document.getElementById("meta-platform").textContent = DEMO.platform;
+      document.getElementById("meta-author").textContent = DEMO.author;
+      document.getElementById("meta-tokens").textContent = DEMO.tokens;
+      document.getElementById("meta-cached").textContent = DEMO.cached;
+      renderClaims(DEMO.claims);
+      currentRawReport = DEMO.report;
+      renderReportMd(DEMO.report, false);
+
+      document.getElementById("demo-note").classList.add("show");
+    }
+
+    function clearAll() {
+      isDemo = false;
+      document.getElementById("demo-note").classList.remove("show");
+      document.getElementById("pipeline-panel").classList.remove("show");
+      document.getElementById("result-container").classList.remove("show");
+      document.getElementById("url-input").value = "";
+      document.getElementById("custom-content").value = "";
+      document.getElementById("custom-content-box").classList.remove("open");
+      currentRawReport = "";
+      clearInterval(timerInterval);
+      document.getElementById("url-input").focus();
+    }
+
+    /* ================= 初始化 ================= */
+    buildStepsRow();
+    loadDemo();
+  </script>
+</body>
+</html>
