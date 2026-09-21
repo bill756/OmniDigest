@@ -22,6 +22,70 @@ def get_llm(streaming: bool = False) -> Optional[ChatOpenAI]:
     )
 
 
+def extract_json_from_llm(raw_text: str) -> Any:
+    """从 LLM 响应文本中稳健提取 JSON 数据。
+
+    彻底解决因 LLM 在字段值内包含 Markdown 代码块（如 ```markdown ... ```）时，
+    朴素的 .split("```")[0] 导致字段被恶意腰斩、引发 Expecting value: line 1 column 1 的严重缺陷。
+    """
+    if not raw_text or not raw_text.strip():
+        raise ValueError("LLM 返回内容为空")
+
+    text = raw_text.strip()
+
+    # 1. 尝试直接反序列化
+    try:
+        return json.loads(text, strict=False)
+    except Exception:
+        pass
+
+    # 2. 剥离首尾的代码块标记（仅剥离最外层首尾匹配的 ```json 与 ```）
+    cleaned = text
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:].strip()
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3].strip()
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[3:].strip()
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3].strip()
+
+    try:
+        return json.loads(cleaned, strict=False)
+    except Exception:
+        pass
+
+    # 3. 提取最外层的完整 JSON 对象 { ... }
+    start_brace = cleaned.find("{")
+    end_brace = cleaned.rfind("}")
+    if start_brace != -1 and end_brace != -1 and end_brace > start_brace:
+        candidate = cleaned[start_brace : end_brace + 1]
+        try:
+            return json.loads(candidate, strict=False)
+        except Exception:
+            pass
+
+    # 4. 提取最外层的完整 JSON 列表 [ ... ]
+    start_bracket = cleaned.find("[")
+    end_bracket = cleaned.rfind("]")
+    if start_bracket != -1 and end_bracket != -1 and end_bracket > start_bracket:
+        candidate = cleaned[start_bracket : end_bracket + 1]
+        try:
+            return json.loads(candidate, strict=False)
+        except Exception:
+            pass
+
+    # 5. 正则贪婪匹配
+    match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", text)
+    if match:
+        try:
+            return json.loads(match.group(0), strict=False)
+        except Exception:
+            pass
+
+    raise json.JSONDecodeError(f"无法从大模型响应中解析出有效的 JSON 数据: {text[:100]}...", text, 0)
+
+
 class MockLLMService:
     """当未配置真实 OPENAI_API_KEY 时的仿真智能降级服务，确保开发测试零门槛"""
 
@@ -36,7 +100,7 @@ class MockLLMService:
             # 匹配数字、百分比或技术断言
             has_data = bool(re.search(r"\d+(\.\d+)?%?|倍|突破|首个|唯一|显著|万|亿", line))
             claim_type = "hard_data" if has_data else "general_opinion"
-            need_verify = has_data and claim_idx <= 2  # 筛选前1-2个数据断言进行联网核验
+            need_verify = has_data  # 解除限制，对全部硬性数据断言均标记核查
 
             claims.append({
                 "claim_id": f"C{claim_idx}",
@@ -265,6 +329,7 @@ class MockLLMService:
                 "green": "🟢 可信",
                 "yellow": "🟡 存疑",
                 "red": "🔴 违规/虚假",
+                "outdated": "🕒 已过时",
                 "unverified": "⚪ 免核验(常规观点)",
             }.get(c.get("confidence_level", "unverified"), "⚪ 未知")
             reason = c.get("verification_reason") or "常规观点表述，无需外部搜索引擎硬性验证。"
@@ -273,10 +338,14 @@ class MockLLMService:
         final_report += "\n---\n\n## 🔍 批判性阅读建议\n"
         if claims:
             yellow_or_red = [c for c in claims if c.get("confidence_level") in ("yellow", "red")]
+            outdated_claims = [c for c in claims if c.get("confidence_level") == "outdated"]
             if yellow_or_red:
                 cids = ", ".join([c.get("claim_id", "") for c in yellow_or_red])
                 final_report += f"- ⚠️ **关注存疑断言**：断言 [{cids}] 在公开交叉核查中存在争议或证据不足，建议进一步对比独立第三方权威评测报告。\n"
-            else:
+            if outdated_claims:
+                cids = ", ".join([c.get("claim_id", "") for c in outdated_claims])
+                final_report += f"- 🕒 **时效与演进关注**：断言 [{cids}] 属历史特定阶段事实，但当前行业数据已发生演化或刷新，请以最新披露为准。\n"
+            if not yellow_or_red and not outdated_claims:
                 final_report += "- ✅ **数据基准交叉核实**：文中硬性数据断言与行业公开发布资料基本吻合，可信度较高。\n"
         final_report += f"- 💡 **理性看待落地约束**：对文中提及的突破性指标（如相关提升幅度、量产时间表等），建议关注其工程落地与边界约束条件。\n"
 

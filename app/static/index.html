@@ -45,6 +45,9 @@
       --danger: color-mix(in srgb, var(--c-red) 60%, var(--seed-fg));
       --danger-bg: color-mix(in srgb, var(--c-red) 9%, var(--seed-surface));
       --danger-line: color-mix(in srgb, var(--c-red) 34%, var(--seed-surface));
+      --outdated: color-mix(in srgb, var(--c-purple) 70%, var(--seed-fg));
+      --outdated-bg: color-mix(in srgb, var(--c-purple) 10%, var(--seed-surface));
+      --outdated-line: color-mix(in srgb, var(--c-purple) 34%, var(--seed-surface));
       --neutral-tag: color-mix(in srgb, var(--seed-fg) 48%, var(--seed-surface));
 
       /* 调色板源色（供浅/深两套主题共同引用） */
@@ -52,6 +55,7 @@
       --c-green: #22c55e;
       --c-amber: #f59e0b;
       --c-red: #ef4444;
+      --c-purple: #8b5cf6;
       --c-shadow: #0d0d0f;
       --c-dark-bg: #0f0f11;
       --c-dark-fg: #f0f0f0;
@@ -321,7 +325,7 @@
     .conf-bar-wrap { padding: 14px 20px 4px; }
     .conf-bar { display: flex; height: 6px; border-radius: 999px; overflow: hidden; background: var(--surface-3); }
     .conf-bar .seg-ok { background: var(--ok); } .conf-bar .seg-warn { background: var(--warn); }
-    .conf-bar .seg-danger { background: var(--danger); } .conf-bar .seg-neutral { background: var(--faint); }
+    .conf-bar .seg-danger { background: var(--danger); } .conf-bar .seg-outdated { background: var(--outdated); } .conf-bar .seg-neutral { background: var(--faint); }
     .conf-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
     .conf-legend span { display: inline-flex; align-items: center; gap: 6px; }
     .conf-legend i { width: 8px; height: 8px; border-radius: 3px; display: inline-block; }
@@ -335,6 +339,7 @@
     .claim.ok { background: var(--ok-bg); border-color: var(--ok-line); }
     .claim.warn { background: var(--warn-bg); border-color: var(--warn-line); }
     .claim.danger { background: var(--danger-bg); border-color: var(--danger-line); }
+    .claim.outdated { background: var(--outdated-bg); border-color: var(--outdated-line); }
     .claim.neutral { background: var(--surface-2); }
     .claim-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .claim-id { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.02em; color: var(--muted); }
@@ -347,6 +352,7 @@
     .claim.ok .claim-badge { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
     .claim.warn .claim-badge { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
     .claim.danger .claim-badge { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+    .claim.outdated .claim-badge { color: var(--outdated); background: color-mix(in srgb, var(--outdated) 12%, transparent); }
     .claim.neutral .claim-badge { color: var(--muted); background: var(--surface-3); }
     .claim-text { font-size: 13px; line-height: 1.65; }
     .claim-reason {
@@ -354,6 +360,20 @@
       border-top: 1px dashed var(--border-strong); padding-top: 8px;
     }
     .claim-reason b { color: var(--fg); font-weight: 500; }
+    .claim-meta-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+    .claim-tier-badge, .claim-indep-badge {
+      font-size: 10.5px; padding: 1px 7px; border-radius: 4px; font-weight: 500;
+      background: var(--surface-3); color: var(--muted); border: 1px solid var(--border);
+    }
+    .claim-quotes {
+      font-size: 11.5px; line-height: 1.6; color: var(--muted);
+      background: color-mix(in srgb, var(--fg) 2.5%, var(--surface));
+      border-radius: 6px; padding: 6px 10px; border-left: 2px solid var(--primary);
+      margin-top: 4px;
+    }
+    .claim-quotes b { color: var(--fg); font-weight: 600; font-size: 11px; }
+    .quotes-list { margin: 3px 0 0 16px; padding: 0; }
+    .quotes-list li { margin: 2px 0; font-style: italic; color: color-mix(in srgb, var(--fg) 80%, transparent); }
 
     /* 元数据卡 */
     .meta-card { padding: 6px 20px 10px; }
@@ -671,6 +691,7 @@
       check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
       alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
       x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+      clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
       minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>',
       dot: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>'
     };
@@ -678,6 +699,8 @@
       green: { cls: "ok", icon: ICONS.check, text: "证据吻合" },
       yellow: { cls: "warn", icon: ICONS.alert, text: "存疑待验证" },
       red: { cls: "danger", icon: ICONS.x, text: "违背事实" },
+      outdated: { cls: "outdated", icon: ICONS.clock, text: "已过时" },
+      unverified: { cls: "neutral", icon: ICONS.minus, text: "未核验" },
       gray: { cls: "neutral", icon: ICONS.minus, text: "未核验" }
     };
 
@@ -801,8 +824,12 @@
       container.innerHTML = "";
 
       // 置信度分布条
-      const counts = { green: 0, yellow: 0, red: 0, gray: 0 };
-      claims.forEach(c => { if (counts[c.confidence_level] !== undefined) counts[c.confidence_level]++; });
+      const counts = { green: 0, yellow: 0, red: 0, outdated: 0, gray: 0 };
+      claims.forEach(c => {
+        const lvl = c.confidence_level === "unverified" ? "gray" : c.confidence_level;
+        if (counts[lvl] !== undefined) counts[lvl]++;
+        else counts.gray++;
+      });
       const total = claims.length || 1;
       const bar = document.getElementById("conf-bar");
       const legend = document.getElementById("conf-legend");
@@ -810,25 +837,43 @@
         <div class="seg-ok" style="width:${(counts.green / total) * 100}%"></div>
         <div class="seg-warn" style="width:${(counts.yellow / total) * 100}%"></div>
         <div class="seg-danger" style="width:${(counts.red / total) * 100}%"></div>
+        <div class="seg-outdated" style="width:${(counts.outdated / total) * 100}%"></div>
         <div class="seg-neutral" style="width:${(counts.gray / total) * 100}%"></div>`;
-      bar.setAttribute("aria-label", `置信度分布：证据吻合 ${counts.green} 项，存疑 ${counts.yellow} 项，违背事实 ${counts.red} 项，未核验 ${counts.gray} 项`);
+      bar.setAttribute("aria-label", `置信度分布：证据吻合 ${counts.green} 项，存疑 ${counts.yellow} 项，违背事实 ${counts.red} 项，已过时 ${counts.outdated} 项，未核验 ${counts.gray} 项`);
       legend.innerHTML = `
         <span><i style="background:var(--ok)"></i>证据吻合 <span class="num">${counts.green}</span></span>
         <span><i style="background:var(--warn)"></i>存疑 <span class="num">${counts.yellow}</span></span>
         <span><i style="background:var(--danger)"></i>违背 <span class="num">${counts.red}</span></span>
+        <span><i style="background:var(--outdated)"></i>已过时 <span class="num">${counts.outdated}</span></span>
         <span><i style="background:var(--faint)"></i>未核验 <span class="num">${counts.gray}</span></span>`;
 
       claims.forEach(c => {
         const b = BADGE[c.confidence_level] || BADGE.gray;
         const item = document.createElement("div");
         item.className = "claim " + b.cls;
+        const timeTag = c.temporal_anchor ? ` · 🕒 ${escapeHtml(c.temporal_anchor)}` : "";
+        const scoreTag = (c.confidence_score !== undefined && c.confidence_score !== null)
+          ? ` <span style="opacity:0.75;font-size:10.5px">(${Math.round(c.confidence_score * 100)}%)</span>`
+          : "";
+
+        const indepCount = c.independent_sources_count || 0;
+        const indepBadge = indepCount > 0 ? `<span class="claim-indep-badge">🌐 ${indepCount}家独立信源</span>` : "";
+        const tierBadge = c.authority_tier ? `<span class="claim-tier-badge">${escapeHtml(c.authority_tier)}</span>` : "";
+        const metaTags = (indepBadge || tierBadge) ? `<div class="claim-meta-tags">${indepBadge}${tierBadge}</div>` : "";
+
+        const quotesHtml = (c.evidence_quotes && c.evidence_quotes.length > 0)
+          ? `<div class="claim-quotes"><b>📜 证据原文摘录 (杜绝杜撰)</b>：<ul class="quotes-list">${c.evidence_quotes.map(q => `<li>“${escapeHtml(q)}”</li>`).join("")}</ul></div>`
+          : "";
+
         item.innerHTML = `
           <div class="claim-top">
-            <span class="claim-id">${c.claim_id} · ${c.claim_type}</span>
-            <span class="claim-badge">${b.icon}${b.text}</span>
+            <span class="claim-id">${c.claim_id} · ${c.claim_type}${timeTag}</span>
+            <span class="claim-badge">${b.icon}${b.text}${scoreTag}</span>
           </div>
           <p class="claim-text"></p>
-          ${c.verification_reason ? `<div class="claim-reason"><b>核验依据</b> · ${escapeHtml(c.verification_reason)}</div>` : ""}`;
+          ${metaTags}
+          ${c.verification_reason ? `<div class="claim-reason"><b>核验依据</b> · ${escapeHtml(c.verification_reason)}</div>` : ""}
+          ${quotesHtml}`;
         item.querySelector(".claim-text").textContent = c.text;
         container.appendChild(item);
       });
@@ -1113,36 +1158,61 @@
       logs: [
         ["请求已受理：URL 规范化与鉴权通过", ""],
         ["正文抓取完成：微信适配器 · 1,842 字 · 广告与导航节点已剔除", "ok"],
-        ["断言提取完成：识别 5 项关键事实断言（3 项硬数据）", "ok"],
-        ["条件路由：3 项触发联网交叉核验，2 项常规观点直接放行", ""],
-        ["Tavily 检索完成：2 源吻合 · 1 源冲突 · 2 源无信源", "ok"],
+        ["断言提取完成：识别 5 项关键事实断言（4 项硬数据/历史参数）", "ok"],
+        ["条件路由：4 项触发全量联网交叉核验，1 项常规观点直接放行", ""],
+        ["Tavily 检索完成：1 源吻合 · 1 源已过时 · 1 源冲突 · 1 源存疑", "ok"],
         ["报告合成完成，已写入 pgvector 向量库", "ok"]
       ],
       claims: [
         {
           claim_id: "C1", claim_type: "数据断言", confidence_level: "red",
+          confidence_score: 0.92,
+          independent_sources_count: 4,
+          authority_tier: "Tier 1 (官方/顶刊)",
           text: "全固态电池能量密度实测达 500Wh/kg，较现有三元锂电池提升 120%。",
-          verification_reason: "公开报道中全固态电池样品能量密度最高约 400Wh/kg（丰田、QuantumScape 2024–2025 区间），且均为实验室小样本数据；「500Wh/kg + 提升 120%」未检索到任何可查证信源，疑似混淆实验室指标与量产指标。"
+          verification_reason: "多方独立信源交叉检索显示：目前公开样品能量密度最高约 400Wh/kg（丰田/QuantumScape 实验室小样本）；「500Wh/kg + 提升 120%」未在任何国际权威期刊或官方公报检索到，判定为夸大失实。",
+          evidence_quotes: [
+            "Nature Energy 评测指出：当前全固态锂金属电池实验室能量密度多在 380-400 Wh/kg 区间，尚未见 500 Wh/kg 工业级复测数据。"
+          ]
         },
         {
           claim_id: "C2", claim_type: "数据断言", confidence_level: "yellow",
+          confidence_score: 0.65,
+          independent_sources_count: 1,
+          authority_tier: "Tier 3 (一般信源)",
           text: "零下 40 度极寒工况下容量保持率仍高达 92%。",
-          verification_reason: "固态电解质低温性能确有优势，但公开文献中 -40°C 容量保持率多处于 60%–85% 区间，92% 显著超出常见实验结果，未找到支持信源。"
+          verification_reason: "属于单一信源孤证。固态电解质低温工况虽有优势，但主流文献中 -40°C 保持率普遍在 60%–85% 区间，92% 超常数据仅见于单篇宣发通稿，缺乏第三方复测。",
+          evidence_quotes: [
+            "行业测试规范显示极寒工况测试通常伴随高压加热辅助，常温常态下保持率显著偏离 90% 以上。"
+          ]
         },
         {
-          claim_id: "C3", claim_type: "数据断言", confidence_level: "yellow",
-          text: "充电 10 分钟即可补充 80% 电量。",
-          verification_reason: "快充能力与固态体系兼容，但该数值无信源支撑；行业同类快充指标通常伴随温升与循环寿命衰减的限定条件，原文未提及。"
+          claim_id: "C3", claim_type: "历史数据", confidence_level: "outdated",
+          temporal_anchor: "2021年",
+          confidence_score: 0.88,
+          independent_sources_count: 3,
+          authority_tier: "Tier 1 (官方/顶刊)",
+          text: "行业此前普遍采用的上一代电解质室温离子电导率停留在 10^-4 S/cm 数量级。",
+          verification_reason: "多方权威文献比对证实：2020-2021 年行业早期早期电解质确实以 10^-4 S/cm 为主流，但 2024 年以后的最新复合电解质已全面跨越至 10^-2 S/cm，旧参数已过时失效。",
+          evidence_quotes: [
+            "早期硫化物电解质常温离子电导率约为 1.2×10^-4 S/cm，最新学术突破已提升 2 个数量级。"
+          ]
         },
         {
-          claim_id: "C4", claim_type: "商业预测", confidence_level: "gray",
-          text: "明年二季度实现百兆瓦级规模化量产，综合续航将普遍突破 1200 公里。",
-          verification_reason: "属前瞻性商业声明，当前无法证伪。全固态电池业内主流预期量产时间在 2027 年之后，建议关注官方后续公告。"
-        },
-        {
-          claim_id: "C5", claim_type: "行业共识", confidence_level: "green",
+          claim_id: "C4", claim_type: "行业共识", confidence_level: "green",
+          confidence_score: 0.95,
+          independent_sources_count: 5,
+          authority_tier: "Tier 1 (官方/顶刊)",
           text: "全固态电池可显著提升能量密度与安全性，是动力电池的确定性方向。",
-          verification_reason: "与宁德时代、丰田、Solid Power 等厂商公开技术路线图及多家券商研报口径一致。"
+          verification_reason: "经 5 家独立权威信源交叉印证，与工信部技术路线图、宁德时代与多国科学院共识吻合，具备坚实行业权威背书。",
+          evidence_quotes: [
+            "工信部新能源汽车发展规划明确指出固态电池为下一代战略级动力储能核心方向。"
+          ]
+        },
+        {
+          claim_id: "C5", claim_type: "商业预测", confidence_level: "gray",
+          text: "明年二季度实现百兆瓦级规模化量产，综合续航将普遍突破 1200 公里。",
+          verification_reason: "属前瞻性商业声明，无需外部硬性核验。业内主流预期全固态电池规模化量产在 2027 年之后，建议关注官方后续批产公告。"
         }
       ],
       report: `## 一句话结论

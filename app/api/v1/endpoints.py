@@ -1,5 +1,6 @@
 import asyncio
 import json
+import hashlib
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
@@ -39,13 +40,18 @@ async def run_pipeline(
     """通用脱水执行流水线，支持流式生成器产出"""
     validated_url = validate_url(req.url)
     url_hash = cache.get_url_hash(validated_url)
+    if req.content_override:
+        content_hash = hashlib.sha256(req.content_override.strip().encode("utf-8")).hexdigest()
+        cache_key = f"digest_v2:{url_hash}:{content_hash[:16]}:{req.enable_fact_check}"
+    else:
+        cache_key = f"digest_v2:{url_hash}:{req.enable_fact_check}"
 
     # 1. 缓存拦截检查
     if not req.force_refresh:
-        cached_data = await cache.get(url_hash)
+        cached_data = await cache.get(cache_key) or await cache.get(url_hash)
         if cached_data:
             if is_stream:
-                yield format_sse({"stage": "cache_hit", "message": "命中 Redis 热点缓存，毫秒级直接呈现"}, event="status")
+                yield format_sse({"stage": "cache_hit", "message": "命中热点持久化缓存，毫秒级直接呈现"}, event="status")
                 # 模拟极速打字机输出已缓存的报告
                 chunks = cached_data.get("final_report", "").split("\n")
                 for c in chunks:
@@ -185,6 +191,7 @@ async def run_pipeline(
         "final_report": final_state.get("final_report", ""),
         "created_at": record.created_at.isoformat() if "record" in locals() else "",
     }
+    await cache.set(cache_key, response_payload, ttl=settings.REDIS_CACHE_TTL)
     await cache.set(url_hash, response_payload, ttl=settings.REDIS_CACHE_TTL)
 
     # 7. 流式逐 token 输出或直接返回

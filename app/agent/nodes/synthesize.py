@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agent.state import DigestState
-from app.agent.llm import get_llm, MockLLMService
+from app.agent.llm import get_llm, MockLLMService, extract_json_from_llm
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +67,12 @@ SYNTHESIZE_SYSTEM_PROMPT = """你是一个全能型的内容智能脱水与深�
 ## 🛡️ 事实断言与动态核查结果
 | 断言编号 | 断言原文 | 类型 | 核验评级 | 核查证据与结论 |
 | :--- | :--- | :--- | :---: | :--- |
-<根据输入的事实断言列表填充表格，核验评级使用 🟢 可信 / 🟡 存疑 / 🔴 违规/虚假 / ⚪ 免核验(常规观点)>
+<根据输入的事实断言列表填充表格，核验评级使用 🟢 可信 / 🟡 存疑 / 🔴 违规/虚假 / 🕒 已过时 / ⚪ 免核验(常规观点)>
 
 ---
 
 ## 🔍 批判性阅读建议
-<由AI结合事实核查结果与内容客观性，给出 2-3 条专业审慎的批判性阅读与验证建议>
+<由AI结合事实核查结果与内容客观性（特别是存疑、过时或数据夸大断言），给出 2-3 条专业审慎的批判性阅读与时效验证建议>
 """
 
 
@@ -102,23 +102,23 @@ async def synthesize_node(state: DigestState) -> Dict[str, Any]:
             resp = await llm.ainvoke(messages)
             raw_text = resp.content.strip()
 
-            if "```json" in raw_text:
-                raw_text = raw_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in raw_text:
-                raw_text = raw_text.split("```")[1].split("```")[0].strip()
-
             try:
-                result = json.loads(raw_text, strict=False)
-            except json.JSONDecodeError:
-                json_match = re.search(r"\{[\s\S]*\}", raw_text)
-                if json_match:
-                    result = json.loads(json_match.group(0), strict=False)
+                result = extract_json_from_llm(raw_text)
+                mindmap = result.get("mindmap", "")
+                summary = result.get("summary", "")
+                final_report = result.get("final_report", "")
+            except Exception as json_err:
+                # 兼容大模型直接输出完整 Markdown 长报告的场景
+                if raw_text.startswith("# ") or "## 📌 核心思维导图" in raw_text:
+                    logger.info("LLM 直接返回了完整 Markdown 报告格式，进行结构化切分兼容处理")
+                    final_report = raw_text
+                    # 尝试从 Markdown 提取思维导图与摘要
+                    mm_match = re.search(r"## 📌 核心思维导图\s*```markdown\s*([\s\S]*?)\s*```", raw_text)
+                    mindmap = mm_match.group(1).strip() if mm_match else ""
+                    sm_match = re.search(r"## 💡 深度脱水摘要\s*([\s\S]*?)(?=\n---\n|\n## |\Z)", raw_text)
+                    summary = sm_match.group(1).strip() if sm_match else ""
                 else:
-                    raise
-
-            mindmap = result.get("mindmap", "")
-            summary = result.get("summary", "")
-            final_report = result.get("final_report", "")
+                    raise json_err
         except Exception as e:
             logger.warning(f"LLM 报告合成执行或解析异常，降级到本地仿真服务: {e}")
             mock_data = MockLLMService.mock_synthesize(title, content, claims)

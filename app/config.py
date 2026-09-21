@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     # 联网搜索核查配置 (Tavily 或 DuckDuckGo)
     TAVILY_API_KEY: Optional[str] = None
 
+    # TypeSafe AI (Jev System One) 配置
+    TYPESAFE_API_KEY: Optional[str] = None
+    TYPESAFE_ENDPOINT: str = "https://api.typesafe.ai"
+    TYPESAFE_MODEL: str = "jev-latest"
+
     # 存储与数据库配置
     # 支持 PostgreSQL+asyncpg (生产及 pgvector 模式) 或 SQLite+aiosqlite (本地轻量模式)
     DATABASE_URL: str = "sqlite+aiosqlite:///./omnidigest.db"

@@ -19,12 +19,18 @@ class ClaimItem(BaseModel):
     )
     need_verify: bool = Field(default=False, description="是否属于存疑或需核查硬事实")
     search_query: Optional[str] = Field(default=None, description="针对该断言生成的针对性检索词")
-    confidence_level: Literal["green", "yellow", "red", "unverified"] = Field(
+    confidence_level: Literal["green", "yellow", "red", "outdated", "unverified"] = Field(
         default="unverified",
-        description="置信度等级：green(可靠)/yellow(存疑不确定)/red(虚假/夸大严重违背事实)/unverified(无需核验或未核验)"
+        description="置信度等级：green(可靠)/yellow(存疑不确定)/red(虚假/夸大严重违背事实)/outdated(历史属实但现已失效)/unverified(无需核验或未核验)"
     )
+    temporal_anchor: Optional[str] = Field(default=None, description="断言涉及的时间基准/锚点，如 2023年")
+    confidence_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="核验置信度量化打分 (0.0~1.0)")
     verification_reason: Optional[str] = Field(default=None, description="核查论证过程与判断依据")
     sources: List[str] = Field(default_factory=list, description="交叉引用的可靠外部来源 URL 或信息来源")
+    evidence_quotes: List[str] = Field(default_factory=list, description="直接摘录自证据片段的原文引文（杜绝杜撰证据）")
+    independent_sources_count: int = Field(default=0, description="支撑或验证该断言的独立域名信源数量")
+    authority_tier: Optional[str] = Field(default=None, description="最高证据信源权威等级 (Tier 1/Tier 2/Tier 3)")
+
 
 
 class DigestResponse(BaseModel):
