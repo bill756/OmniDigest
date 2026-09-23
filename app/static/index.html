@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="canvas:aspect-ratio" content="16:9" />
-  <title>OmniDigest · 跨平台内容智能脱水与事实核查工作台</title>
+  <title>OmniDigest · 跨平台长文深度精读与事实核查工作台</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     /* ============ 设计令牌（种子层） ============ */
@@ -190,6 +190,13 @@
       font-size: 15px; padding: 12px 8px;
     }
     .cmdbar input::placeholder { color: var(--faint); }
+    .cmdbar input:-webkit-autofill,
+    .cmdbar input:-webkit-autofill:hover,
+    .cmdbar input:-webkit-autofill:focus {
+      -webkit-text-fill-color: var(--fg);
+      -webkit-box-shadow: 0 0 0px 1000px var(--surface) inset;
+      transition: background-color 5000s ease-in-out 0s;
+    }
     .run-btn {
       flex: none; display: inline-flex; align-items: center; gap: 8px;
       background: var(--btn-bg); color: var(--btn-fg); border: 0;
@@ -245,22 +252,6 @@
     }
     .paste-box textarea:focus { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); }
     .paste-box textarea::placeholder { color: var(--faint); font-family: var(--font-ui); }
-
-    /* ============ 示例数据提示条 ============ */
-    .demo-note {
-      margin-top: 20px; display: none;
-      align-items: center; gap: 10px;
-      font-size: 12.5px; color: var(--muted);
-      background: var(--surface-2); border: 1px dashed var(--border-strong);
-      border-radius: 999px; padding: 6px 8px 6px 16px; width: fit-content; max-width: 100%;
-    }
-    .demo-note.show { display: inline-flex; animation: fade-up 0.28s var(--ease-out); }
-    .demo-note svg { width: 14px; height: 14px; color: var(--faint); flex: none; }
-    .demo-note button {
-      border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg);
-      font-size: 12px; padding: 3px 12px; border-radius: 999px;
-    }
-    .demo-note button:hover { background: var(--surface-3); }
 
     /* ============ 流水线时间轴 ============ */
     .pipeline {
@@ -513,7 +504,7 @@
       </div>
       <div class="topbar-actions">
         <nav class="tabs" aria-label="工作区切换" data-component="Tab Switcher" data-od-id="tabs">
-          <button id="tab-digest-btn" class="tab active" onclick="switchTab('digest')">智能脱水分析</button>
+          <button id="tab-digest-btn" class="tab active" onclick="switchTab('digest')">深度精读分析</button>
           <button id="tab-search-btn" class="tab" onclick="switchTab('search')">语义反查与历史</button>
         </nav>
         <button id="theme-toggle" class="icon-btn" onclick="toggleTheme()" title="切换深浅主题" aria-label="切换深浅主题">
@@ -529,53 +520,45 @@
 
   <main class="wrap" data-component="Main Workspace" data-od-id="main">
 
-    <!-- 标签一：智能脱水分析 -->
+    <!-- 标签一：深度精读分析 -->
     <section id="section-digest" data-component="Digest Workspace" data-od-id="digest-workspace">
 
       <div class="hero" data-component="Command Hero" data-od-id="command-hero">
-        <h1 class="hero-title">把喧嚣的长文，脱成一份可核验的结论。</h1>
-        <p class="hero-sub">粘贴任意公众号或知乎长文链接，智能体完成正文清洗、断言提取与联网交叉核验，以红黄绿置信度生成脱水报告。</p>
+        <h1 class="hero-title">提炼长文核心事实，多方信源交叉核验。</h1>
+        <p class="hero-sub">输入公众号或知乎长文链接，自动完成正文解析、关键论点提炼与多方信源核实，生成高置信度精读报告。</p>
         <div class="cmdbar" data-component="Digest Command Bar" data-od-id="digest-cmdbar">
           <svg class="cmdbar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           <input
             id="url-input"
             type="text"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
             placeholder="粘贴微信公众号 / 知乎专栏 / 任意公开文章 URL…"
             aria-label="文章 URL"
             onkeydown="if(event.key==='Enter') startDigest()"
           />
           <button id="start-btn" class="run-btn" onclick="startDigest()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-            <span id="btn-text">开始脱水分析</span>
+            <span id="btn-text">开始精读分析</span>
           </button>
         </div>
         <div class="options-row">
           <label class="opt"><input type="checkbox" id="check-fact" checked><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>联网事实核验</label>
           <label class="opt"><input type="checkbox" id="check-refresh"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>跳过缓存</label>
           <button class="linklike" onclick="toggleCustomContent()">直接粘贴正文（降级模式）</button>
-          <div class="samples">
-            <span class="samples-label">示例</span>
-            <button class="chip" onclick="fillExample('wechat')">微信爆款</button>
-            <button class="chip" onclick="fillExample('zhihu')">知乎技术</button>
-            <button class="chip" onclick="fillExample('tech')">硬核科技</button>
-          </div>
+          <button class="linklike" onclick="clearAll()" style="margin-left:auto">清空输入与结果</button>
         </div>
         <div id="custom-content-box" class="paste-box">
-          <textarea id="custom-content" rows="5" placeholder="在此直接粘贴文章正文，系统将跳过爬虫阶段，直接进入断言提取与事实核查…"></textarea>
+          <textarea id="custom-content" rows="5" autocomplete="off" spellcheck="false" placeholder="在此直接粘贴文章正文，系统将跳过爬虫阶段，直接进入断言提取与事实核查…"></textarea>
         </div>
-      </div>
-
-      <!-- 示例数据提示条 -->
-      <div id="demo-note" class="demo-note" data-component="Demo Notice" data-od-id="demo-note">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-        <span>当前展示为内置示例数据，无需后端即可完整演示</span>
-        <button onclick="clearAll()">清空，分析我自己的文章</button>
       </div>
 
       <!-- 执行流水线 -->
       <div id="pipeline-panel" class="pipeline" data-component="Pipeline Timeline" data-od-id="pipeline">
         <div class="pipeline-head">
-          <span class="caps"><span class="live-dot" id="pipeline-dot"></span>Agentic 执行流水线 · SSE</span>
+          <span class="caps"><span class="live-dot" id="pipeline-dot"></span>实时分析流水线 · SSE</span>
           <span id="pipeline-timer" class="num" style="font-size:12px;color:var(--muted)">0.0s</span>
         </div>
         <div class="steps" id="steps-row" role="list" aria-label="执行阶段"></div>
@@ -614,7 +597,7 @@
         <div class="report-col">
           <div class="card report-card" data-component="Report Card" data-od-id="report-card">
             <div class="report-head">
-              <h2 id="report-title" class="report-title" data-component="Report Title" data-od-id="report-title">脱水报告生成中…</h2>
+              <h2 id="report-title" class="report-title" data-component="Report Title" data-od-id="report-title">精读报告生成中…</h2>
               <div class="report-actions">
                 <button id="copy-btn" class="ghost-btn" onclick="copyReport()">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -636,19 +619,29 @@
       <div class="searchbar" data-component="Search Command Bar" data-od-id="search-cmdbar">
         <div class="cmdbar">
           <svg class="cmdbar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input id="search-input" type="text" placeholder="用自然语言提问，例如「固态电池有什么最新技术突破？」" aria-label="语义检索问题" onkeydown="if(event.key==='Enter') executeSearch()" />
+          <input
+            id="search-input"
+            type="text"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="用自然语言提问，例如「固态电池有什么最新技术突破？」"
+            aria-label="语义检索问题"
+            onkeydown="if(event.key==='Enter') executeSearch()"
+          />
           <button class="run-btn" onclick="executeSearch()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
             <span>语义检索</span>
           </button>
         </div>
       </div>
-      <p class="search-desc">基于 pgvector 向量库，在所有已分析落库的文章中检索最相关的段落与脱水论点。</p>
+      <p class="search-desc">基于 BM25 全文检索与高精度语义向量混合引擎，支持拼写容错与标题加权，在所有已分析落库的文章中检索最相关的段落与核心论点。</p>
 
       <div id="search-results" class="search-results" data-component="Search Results" data-od-id="search-results">
         <div class="card idle-hint">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <p>先在「智能脱水分析」中分析几篇文章，之后即可在这里用自然语言跨文章反查历史论点。</p>
+          <p>先在「深度精读分析」中分析几篇文章，之后即可在这里用自然语言跨文章反查历史论点。</p>
         </div>
       </div>
 
@@ -656,7 +649,7 @@
         <div class="card-head">
           <span class="card-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
-            最近脱水记录
+            最近分析记录
           </span>
           <button class="ghost-btn" onclick="loadHistory()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>
@@ -708,7 +701,6 @@
     let currentRawReport = "";
     let timerInterval = null;
     let startTime = 0;
-    let isDemo = false;
 
     const PIPE_STAGES = [
       { id: "request", label: "发起请求" },
@@ -798,25 +790,6 @@
       document.getElementById("custom-content-box").classList.toggle("open");
     }
 
-    function fillExample(type) {
-      const urlInput = document.getElementById("url-input");
-      const content = document.getElementById("custom-content");
-      const box = document.getElementById("custom-content-box");
-      if (type === "wechat") {
-        urlInput.value = "https://mp.weixin.qq.com/s/sample_article_omni_digest_101";
-        content.value = "【重磅突破】全球首款全固态电池能量密度飙升至 500Wh/kg！\n今日，某新能源联合实验室宣布在全固态锂电池领域取得颠覆性突破，其能量密度实测达到 500Wh/kg，相比现有三元锂电池提升了足足 120%。在零下 40 度极寒工况下容量保持率仍高达 92%，充电 10 分钟即可补充 80% 电量。\n该项目负责人表示，这一突破彻底解决了电动汽车冬季里程衰减痛点，计划于明年二季度实现百兆瓦级规模化量产，届时电动车综合续航将普遍突破 1200 公里，成本有望降低 35%。";
-        box.classList.add("open");
-      } else if (type === "zhihu") {
-        urlInput.value = "https://zhuanlan.zhihu.com/p/678901234";
-        content.value = "如何客观评价近期大模型推理架构的新演进？\n大语言模型推理阶段的核心瓶颈长期在于显存带宽（Memory Wall）。近期业内提出的一系列推测解码（Speculative Decoding）技术，通过小型草稿模型与大型目标模型的验证机制结合，使端到端推理吞吐量提升了 2.5 到 3.2 倍，而输出完全无损。\n同时，配合 KV Cache 量化技术（从 FP16 压缩至 INT4），显存占用骤降 65%，单卡即可运行 70B 参数规模的稠密模型。";
-        box.classList.add("open");
-      } else {
-        urlInput.value = "https://www.nature.com/articles/s41586-quantum-breakthrough";
-        content.value = "";
-        box.classList.remove("open");
-      }
-    }
-
     /* ================= 渲染：断言 ================= */
     function renderClaims(claims) {
       const container = document.getElementById("claims-list");
@@ -892,7 +865,7 @@
       el.classList.toggle("streaming", !!streaming);
     }
 
-    /* ================= 主流程：脱水分析 ================= */
+    /* ================= 主流程：深度精读分析 ================= */
     async function startDigest() {
       const url = document.getElementById("url-input").value.trim();
       const customText = document.getElementById("custom-content").value.trim();
@@ -905,20 +878,17 @@
         return;
       }
 
-      isDemo = false;
-      document.getElementById("demo-note").classList.remove("show");
-
       const startBtn = document.getElementById("start-btn");
       const btnText = document.getElementById("btn-text");
       startBtn.disabled = true;
-      btnText.textContent = "智能体处理中…";
+      btnText.textContent = "正在分析处理…";
 
       document.getElementById("pipeline-panel").classList.add("show");
       document.getElementById("pipeline-log").innerHTML = "";
       resetSteps();
       setStep("request", "active");
       document.getElementById("result-container").classList.add("show");
-      document.getElementById("report-title").textContent = "脱水报告生成中…";
+      document.getElementById("report-title").textContent = "精读报告生成中…";
       renderReportMd("", false);
       document.getElementById("claims-list").innerHTML = '<p class="placeholder">正在提取文本中的事实断言…</p>';
       document.getElementById("conf-bar").innerHTML = "";
@@ -971,7 +941,7 @@
       } finally {
         clearInterval(timerInterval);
         startBtn.disabled = false;
-        btnText.textContent = "开始脱水分析";
+        btnText.textContent = "开始精读分析";
       }
     }
 
@@ -1017,7 +987,7 @@
       } else if (event === "result") {
         try {
           const payload = JSON.parse(dataStr);
-          document.getElementById("report-title").textContent = payload.title || "脱水分析报告";
+          document.getElementById("report-title").textContent = payload.title || "深度精读报告";
           document.getElementById("meta-platform").textContent = payload.source_platform || "未知";
           document.getElementById("meta-author").textContent = payload.author || "佚名";
           document.getElementById("meta-tokens").textContent = payload.token_count + " 字符";
@@ -1052,14 +1022,14 @@
           ${isAntispider ? `
           <div class="err-guide">
             <b>推荐解决方式</b>：该平台（如知乎 / 微信）启用了动态安全验证盾（zse-ck），自动化爬虫受限。
-            系统已为你展开上方「直接粘贴正文」输入框——在浏览器中打开文章、复制正文粘贴进来，再次点击「开始脱水分析」，即可完整体验断言提取与联网事实核验。
+            系统已为你展开上方「直接粘贴正文」输入框——在浏览器中打开文章、复制正文粘贴进来，再次点击「开始精读分析」，即可完整体验断言提取与联网事实核验。
           </div>` : ""}
         </div>`;
       if (isAntispider) {
         const box = document.getElementById("custom-content-box");
         box.classList.add("open");
         const ta = document.getElementById("custom-content");
-        ta.placeholder = "将该文章的正文内容粘贴至此，然后点击「开始脱水分析」…";
+        ta.placeholder = "将该文章的正文内容粘贴至此，然后点击「开始精读分析」…";
         ta.focus();
       }
     }
@@ -1082,7 +1052,7 @@
       const query = document.getElementById("search-input").value.trim();
       if (!query) return;
       const container = document.getElementById("search-results");
-      container.innerHTML = '<p class="placeholder" style="padding:12px 4px">正在向量数据库中检索…</p>';
+      container.innerHTML = '<p class="placeholder" style="padding:12px 4px">正在混合数据库中进行语义与全文检索…</p>';
       try {
         const resp = await fetch("/api/v1/search", {
           method: "POST",
@@ -1091,8 +1061,19 @@
         });
         const data = await resp.json();
         container.innerHTML = "";
+
+        if (data.notice) {
+          const noticeBanner = document.createElement("div");
+          noticeBanner.style.cssText = "background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.22);border-radius:8px;padding:9px 14px;font-size:13px;color:#2563eb;margin-bottom:14px;display:flex;align-items:center;gap:6px;";
+          noticeBanner.innerHTML = `<span>💡 <b>智能语义提示：</b>${escapeHtml(data.notice)}</span>`;
+          container.appendChild(noticeBanner);
+        }
+
         if (!data.results || data.results.length === 0) {
-          container.innerHTML = '<div class="card idle-hint"><p>未找到相关主题文章。请先使用「智能脱水分析」落库一些文章，再回来检索。</p></div>';
+          const emptyCard = document.createElement("div");
+          emptyCard.className = "card idle-hint";
+          emptyCard.innerHTML = '<p>未找到高置信度的相关主题文章。系统已自动过滤无关低分内容。您可以尝试更换关键词或在「深度精读分析」中落库相关文章。</p>';
+          container.appendChild(emptyCard);
           return;
         }
         data.results.forEach(item => {
@@ -1100,10 +1081,14 @@
           card.className = "card result-card";
           const simPct = (item.similarity * 100).toFixed(1);
           const safeUrl = escapeHtml(item.url || "#");
+          const reasonHtml = item.match_reason ? `<span class="match-badge" style="font-size:11px;font-weight:normal;background:rgba(16,185,129,0.12);color:#059669;padding:2px 7px;border-radius:4px;margin-left:6px">${escapeHtml(item.match_reason)}</span>` : "";
           card.innerHTML = `
             <div class="result-top">
               <span class="result-title" role="link" tabindex="0" onclick="window.open('${safeUrl}')" onkeydown="if(event.key==='Enter')window.open('${safeUrl}')"></span>
-              <span class="sim-badge">相似度 ${simPct}%</span>
+              <div style="display:flex;align-items:center;gap:4px">
+                ${reasonHtml}
+                <span class="sim-badge">匹配度 ${simPct}%</span>
+              </div>
             </div>
             <p class="result-summary"></p>
             <div class="result-meta"><span>${escapeHtml(item.source_platform || "")}</span><span>${escapeHtml(String(item.created_at || "").slice(0, 19))}</span></div>`;
@@ -1147,139 +1132,7 @@
       }
     }
 
-    /* ================= 示例数据（演示模式） ================= */
-    const DEMO = {
-      title: "全固态电池「500Wh/kg 重大突破」脱水报告",
-      platform: "微信公众号",
-      author: "某新能源联合实验室",
-      tokens: "1,842 字符",
-      cached: "示例 · 缓存命中",
-      elapsed: "8.6s",
-      logs: [
-        ["请求已受理：URL 规范化与鉴权通过", ""],
-        ["正文抓取完成：微信适配器 · 1,842 字 · 广告与导航节点已剔除", "ok"],
-        ["断言提取完成：识别 5 项关键事实断言（4 项硬数据/历史参数）", "ok"],
-        ["条件路由：4 项触发全量联网交叉核验，1 项常规观点直接放行", ""],
-        ["Tavily 检索完成：1 源吻合 · 1 源已过时 · 1 源冲突 · 1 源存疑", "ok"],
-        ["报告合成完成，已写入 pgvector 向量库", "ok"]
-      ],
-      claims: [
-        {
-          claim_id: "C1", claim_type: "数据断言", confidence_level: "red",
-          confidence_score: 0.92,
-          independent_sources_count: 4,
-          authority_tier: "Tier 1 (官方/顶刊)",
-          text: "全固态电池能量密度实测达 500Wh/kg，较现有三元锂电池提升 120%。",
-          verification_reason: "多方独立信源交叉检索显示：目前公开样品能量密度最高约 400Wh/kg（丰田/QuantumScape 实验室小样本）；「500Wh/kg + 提升 120%」未在任何国际权威期刊或官方公报检索到，判定为夸大失实。",
-          evidence_quotes: [
-            "Nature Energy 评测指出：当前全固态锂金属电池实验室能量密度多在 380-400 Wh/kg 区间，尚未见 500 Wh/kg 工业级复测数据。"
-          ]
-        },
-        {
-          claim_id: "C2", claim_type: "数据断言", confidence_level: "yellow",
-          confidence_score: 0.65,
-          independent_sources_count: 1,
-          authority_tier: "Tier 3 (一般信源)",
-          text: "零下 40 度极寒工况下容量保持率仍高达 92%。",
-          verification_reason: "属于单一信源孤证。固态电解质低温工况虽有优势，但主流文献中 -40°C 保持率普遍在 60%–85% 区间，92% 超常数据仅见于单篇宣发通稿，缺乏第三方复测。",
-          evidence_quotes: [
-            "行业测试规范显示极寒工况测试通常伴随高压加热辅助，常温常态下保持率显著偏离 90% 以上。"
-          ]
-        },
-        {
-          claim_id: "C3", claim_type: "历史数据", confidence_level: "outdated",
-          temporal_anchor: "2021年",
-          confidence_score: 0.88,
-          independent_sources_count: 3,
-          authority_tier: "Tier 1 (官方/顶刊)",
-          text: "行业此前普遍采用的上一代电解质室温离子电导率停留在 10^-4 S/cm 数量级。",
-          verification_reason: "多方权威文献比对证实：2020-2021 年行业早期早期电解质确实以 10^-4 S/cm 为主流，但 2024 年以后的最新复合电解质已全面跨越至 10^-2 S/cm，旧参数已过时失效。",
-          evidence_quotes: [
-            "早期硫化物电解质常温离子电导率约为 1.2×10^-4 S/cm，最新学术突破已提升 2 个数量级。"
-          ]
-        },
-        {
-          claim_id: "C4", claim_type: "行业共识", confidence_level: "green",
-          confidence_score: 0.95,
-          independent_sources_count: 5,
-          authority_tier: "Tier 1 (官方/顶刊)",
-          text: "全固态电池可显著提升能量密度与安全性，是动力电池的确定性方向。",
-          verification_reason: "经 5 家独立权威信源交叉印证，与工信部技术路线图、宁德时代与多国科学院共识吻合，具备坚实行业权威背书。",
-          evidence_quotes: [
-            "工信部新能源汽车发展规划明确指出固态电池为下一代战略级动力储能核心方向。"
-          ]
-        },
-        {
-          claim_id: "C5", claim_type: "商业预测", confidence_level: "gray",
-          text: "明年二季度实现百兆瓦级规模化量产，综合续航将普遍突破 1200 公里。",
-          verification_reason: "属前瞻性商业声明，无需外部硬性核验。业内主流预期全固态电池规模化量产在 2027 年之后，建议关注官方后续批产公告。"
-        }
-      ],
-      report: `## 一句话结论
-
-这是一篇**用真实的产业方向包装夸大数据**的流量型文章：方向（全固态电池）是真的，核心数据（500Wh/kg、-40°C 92% 保持率、10 分钟 80%）均无法核验或明显超出公开区间。
-
-## 核心论点骨架
-
-1. 某实验室宣布全固态电池能量密度突破 500Wh/kg（**违背事实 · C1**）
-2. 极寒工况容量保持率 92%、10 分钟快充 80%（**存疑 · C2 C3**）
-3. 明年二季度百兆瓦级量产、续航 1200 公里（**未核验的前瞻声明 · C4**）
-4. 全固态是动力电池确定性方向（**证据吻合 · C5**）
-
-## 事实核验摘要
-
-| 断言 | 结论 | 依据 |
-| --- | --- | --- |
-| C1 · 500Wh/kg | **违背事实** | 行业样品最高约 400Wh/kg，无任何信源 |
-| C2 · -40°C 92% | **存疑** | 文献常见区间 60%–85% |
-| C3 · 10min 80% | **存疑** | 无信源，缺限定条件 |
-| C4 · 明年量产 | **未核验** | 前瞻声明，主流预期 2027+ |
-| C5 · 产业方向 | **证据吻合** | 与多家厂商路线图一致 |
-
-## 阅读建议
-
-文章的**定性判断可信，定量数据全部存疑**。若用于决策，请等待具备署名、实验条件与第三方复测的数据发布；「明年二季度量产」的说法与产业主流时间表偏差 2 年以上。`
-    };
-
-    function loadDemo() {
-      isDemo = true;
-      document.getElementById("url-input").value = "https://mp.weixin.qq.com/s/sample_article_omni_digest_101";
-
-      // 流水线：完成态
-      buildStepsRow();
-      PIPE_STAGES.forEach(s => setStep(s.id, "done"));
-      document.getElementById("pipeline-panel").classList.add("show");
-      document.getElementById("pipeline-dot").style.animation = "none";
-      document.getElementById("pipeline-timer").textContent = DEMO.elapsed;
-      startTime = Date.now() - 8600;
-      const log = document.getElementById("pipeline-log");
-      log.innerHTML = "";
-      DEMO.logs.forEach(([msg, kind]) => {
-        const line = document.createElement("div");
-        line.className = "log-line" + (kind ? " " + kind : "");
-        line.innerHTML = `<span class="t num">[--]</span><span></span>`;
-        line.firstChild.textContent = `[${DEMO.elapsed}]`;
-        line.lastChild.textContent = msg;
-        log.appendChild(line);
-      });
-
-      // 结果
-      document.getElementById("result-container").classList.add("show");
-      document.getElementById("report-title").textContent = DEMO.title;
-      document.getElementById("meta-platform").textContent = DEMO.platform;
-      document.getElementById("meta-author").textContent = DEMO.author;
-      document.getElementById("meta-tokens").textContent = DEMO.tokens;
-      document.getElementById("meta-cached").textContent = DEMO.cached;
-      renderClaims(DEMO.claims);
-      currentRawReport = DEMO.report;
-      renderReportMd(DEMO.report, false);
-
-      document.getElementById("demo-note").classList.add("show");
-    }
-
     function clearAll() {
-      isDemo = false;
-      document.getElementById("demo-note").classList.remove("show");
       document.getElementById("pipeline-panel").classList.remove("show");
       document.getElementById("result-container").classList.remove("show");
       document.getElementById("url-input").value = "";
@@ -1292,7 +1145,6 @@
 
     /* ================= 初始化 ================= */
     buildStepsRow();
-    loadDemo();
   </script>
 </body>
 </html>

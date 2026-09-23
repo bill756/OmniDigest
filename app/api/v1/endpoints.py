@@ -37,7 +37,7 @@ async def run_pipeline(
     cache: CacheClient,
     is_stream: bool = False,
 ):
-    """通用脱水执行流水线，支持流式生成器产出"""
+    """通用深度精读执行流水线，支持流式生成器产出"""
     validated_url = validate_url(req.url)
     url_hash = cache.get_url_hash(validated_url)
     if req.content_override:
@@ -103,7 +103,7 @@ async def run_pipeline(
     # 3. 文本预处理与长度决策
     if is_stream:
         yield format_sse(
-            {"stage": "preprocessor", "message": f"正文清洗完毕 (约 {token_count} 字符)，进入智能体决策编排..."},
+            {"stage": "preprocessor", "message": f"正文清洗完毕 (约 {token_count} 字符)，进入精读分析流水线..."},
             event="status",
         )
 
@@ -138,7 +138,7 @@ async def run_pipeline(
                         "claims": node_output.get("claims", []),
                     }, event="status")
                 elif node_name == "synthesize":
-                    yield format_sse({"stage": "synthesize", "message": "正在渲染最终脱水报告..."}, event="status")
+                    yield format_sse({"stage": "synthesize", "message": "正在渲染最终精读报告..."}, event="status")
     else:
         final_state = await digest_graph.ainvoke(initial_state)
 
@@ -171,6 +171,7 @@ async def run_pipeline(
             mindmap=final_state.get("mindmap", ""),
             claims=final_state.get("claims", []),
             final_report=final_state.get("final_report", ""),
+            title=article_data.title,
         )
     except Exception as e:
         # 记录日志，不阻断输出
@@ -209,7 +210,7 @@ async def run_pipeline(
 
 @router.post(
     "/digest",
-    summary="对指定文章 URL 进行脱水与事实核验",
+    summary="对指定文章 URL 进行深度精读与事实核验",
     response_model=DigestResponse,
 )
 async def create_digest(
@@ -246,7 +247,7 @@ async def create_digest(
 
 @router.get(
     "/history",
-    summary="获取历史脱水报告列表",
+    summary="获取历史精读报告列表",
 )
 async def list_history(
     skip: int = Query(0, ge=0),
@@ -278,7 +279,7 @@ async def list_history(
 
 @router.post(
     "/search",
-    summary="基于向量语义跨文章检索历史报告",
+    summary="基于混合检索跨文章检索历史报告",
     response_model=SearchResponse,
 )
 async def search_digests(
@@ -286,9 +287,10 @@ async def search_digests(
     db: AsyncSession = Depends(get_db),
     _: bool = Depends(verify_api_key),
 ):
-    results = await search_similar_digests(db, query=req.query, top_k=req.top_k)
+    results, notice = await search_similar_digests(db, query=req.query, top_k=req.top_k)
     return SearchResponse(
         query=req.query,
+        notice=notice,
         total=len(results),
         results=[SearchResultItem(**r) for r in results],
     )
@@ -296,7 +298,7 @@ async def search_digests(
 
 @router.get(
     "/article/{article_id}",
-    summary="根据 ID 获取文章原正文及最新脱水报告",
+    summary="根据 ID 获取文章原正文及最新精读报告",
 )
 async def get_article_detail(
     article_id: int,

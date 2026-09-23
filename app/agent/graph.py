@@ -8,7 +8,7 @@ from app.agent.nodes.synthesize import synthesize_node
 
 
 def build_digest_graph():
-    """构建智能体状态图编排"""
+    """构建分析流程状态图编排"""
     workflow = StateGraph(DigestState)
 
     # 注册节点
@@ -45,7 +45,7 @@ async def stream_agent_events(initial_state: DigestState) -> AsyncGenerator[Dict
     """通过 astream 实时流式捕获各节点的阶段执行事件"""
     yield {
         "stage": "agent_start",
-        "message": "启动智能体工作流 (StateGraph)...",
+        "message": "启动分析流水线 (StateGraph)...",
     }
 
     current_state = dict(initial_state)

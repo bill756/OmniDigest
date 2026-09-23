@@ -31,7 +31,7 @@ def is_valid_topic_entity(tag: str) -> bool:
 def extract_topic_entities(title: str, content: str, top_k: int = 6) -> List[str]:
     """使用 TextRank + 权重增强从文章标题与首部内容中提炼核心事件实体
 
-    返回体现文章核心主题的高信息密度实词（如：['大学城', '广州', '持刀伤人', '李某']）
+    返回体现文章核心主题的高信息密度实词
     """
     clean_title = re.sub(r"[《》【】\(\)（）\?？!！]", " ", title or "").strip()
     # 标题赋予 3 倍权重以确保核心事件主体占主导地位

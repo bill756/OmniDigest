@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="跨平台内容智能脱水与动态事实核查智能体平台 API",
+    description="跨平台长文深度精读与动态事实核查平台 API",
     version="0.1.0",
     lifespan=lifespan,
     docs_url="/docs",

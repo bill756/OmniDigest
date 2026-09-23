@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import re
 from copy import deepcopy
 from typing import Optional, Dict
@@ -5,8 +7,11 @@ from lxml.html import tostring
 from markdownify import markdownify
 from scrapling import AsyncFetcher, Selector
 from scrapling.engines.toolbelt.custom import Response
+from scrapling.fetchers import StealthyFetcher
 from app.config import get_settings
 from app.crawler.base import BaseCrawler, ArticleContent
+
+logger = logging.getLogger(__name__)
 
 
 class ZhihuCrawler(BaseCrawler):
@@ -49,11 +54,45 @@ class ZhihuCrawler(BaseCrawler):
         except Exception:
             return None
 
+    async def fetch_response_stealthy(self, url: str) -> Response:
+        """通过高匿无头浏览器 (StealthyFetcher/patchright) 静默抓取，绕过知乎 JS 挑战与反爬拦截"""
+        logger.info(f"正在启动高匿无头浏览器 (StealthyFetcher) 自愈抓取: {url}")
+        timeout_ms = int(max(self.timeout * 2000, 20000))
+
+        def _run_fetch():
+            return StealthyFetcher.fetch(
+                url,
+                headless=True,
+                timeout=timeout_ms,
+                wait=1000,
+            )
+
+        try:
+            page = await asyncio.to_thread(_run_fetch)
+        except Exception as e:
+            raise RuntimeError(f"无头浏览器渲染抓取知乎页面失败: {e}") from e
+
+        # 尝试捕获无头浏览器生成的最新动态 Cookie 并反哺回系统与 .env
+        try:
+            if hasattr(page, "cookies") and page.cookies:
+                cookie_dicts = [c for c in page.cookies if isinstance(c, dict)]
+                if cookie_dicts:
+                    from app.crawler.cookie_sync import format_cookie_list_to_string, update_env_file
+                    new_cookie_str = format_cookie_list_to_string(cookie_dicts)
+                    if "d_c0=" in new_cookie_str or "__zse_ck=" in new_cookie_str:
+                        logger.info("已捕获无头浏览器生成的最新知乎凭证，自动更新至配置！")
+                        update_env_file(new_cookie_str)
+        except Exception as ex:
+            logger.debug(f"反哺无头浏览器 Cookie 失败 (不影响本次抓取): {ex}")
+
+        return page
+
     async def fetch_response(
         self,
         url: str,
         headers: Optional[Dict[str, str]] = None,
         cookies: Optional[Dict[str, str]] = None,
+        is_retry: bool = False,
     ) -> Response:
         """异步抓取知乎网页，通过 Chrome 124 TLS 指纹及完整 Client Hints 绕过知乎反爬"""
         req_headers = dict(self.ZHIHU_CHROME_HEADERS)
@@ -79,24 +118,13 @@ class ZhihuCrawler(BaseCrawler):
             # 1. 检测是否被知乎 302 重定向拦截到非人验证码挑战页面
             resp_url_str = str(resp.url).lower()
             if "account/unhuman" in resp_url_str or "unhuman" in resp_url_str:
-                raise RuntimeError(
-                    "知乎触发了平台安全验证挑战（请求被重定向至 /account/unhuman 验证码拦截页）。"
-                    "原因分析：当前客户端缺少有效 Cookie、Cookie 绑定的设备指纹失效，或触发了频率风控。"
-                    "解决建议：在 .env 中填入最新登录的 ZHIHU_COOKIE，或直接在页面下方使用「直接粘贴正文」模式。"
-                )
+                logger.warning("知乎请求触发 302 验证拦截页 (unhuman)，正在自动唤起无头浏览器自愈...")
+                return await self.fetch_response_stealthy(url)
 
-            # 2. 检查 403 状态码并诊断原因
+            # 2. 检查 403 状态码并自动自愈降级
             if resp.status == 403:
-                if not cookie_val:
-                    raise RuntimeError(
-                        "知乎返回 403 Forbidden（触发平台 JS 安全盾拦截）。"
-                        "请在 .env 中配置有效 ZHIHU_COOKIE，或使用页面下方的「直接粘贴正文」模式。"
-                    )
-                else:
-                    raise RuntimeError(
-                        "知乎返回 403 Forbidden（当前配置的 ZHIHU_COOKIE 可能已过期失效或未绑定当前客户端环境）。"
-                        "请在 .env 中更新 ZHIHU_COOKIE，或使用页面下方的「直接粘贴正文」模式。"
-                    )
+                logger.warning("知乎返回 403 Forbidden (JS安全盾或Cookie失效)，正在自动唤起无头浏览器自愈...")
+                return await self.fetch_response_stealthy(url)
             elif resp.status == 404:
                 raise RuntimeError("知乎页面不存在或已被作者删除 (HTTP 404)。请检查文章链接是否正确。")
             elif resp.status >= 400:
@@ -152,11 +180,13 @@ class ZhihuCrawler(BaseCrawler):
             sel = Selector(content=html, url=url)
 
         if "zh-zse-ck" in html:
-            cookie_val = self._get_cookie()
-            if not cookie_val:
-                raise RuntimeError("知乎页面启用了动态 JS 安全盾 (zse-ck 验证挑战)。请在 .env 中配置有效 ZHIHU_COOKIE，或使用下方的「直接粘贴正文」模式。")
-            else:
-                raise RuntimeError("知乎页面启用了动态 JS 安全盾 (zse-ck 验证挑战)，当前 ZHIHU_COOKIE 可能已失效。请更新 Cookie 或使用下方的「直接粘贴正文」模式。")
+            logger.warning("知乎页面包含动态 JS 挑战盾 (zh-zse-ck)，正在调用无头浏览器自愈渲染...")
+            sel = await self.fetch_response_stealthy(url)
+            html = sel.html_content or (
+                sel.body.decode("utf-8", errors="ignore")
+                if isinstance(sel.body, bytes)
+                else str(sel.body)
+            )
 
         if "没有知识存在的荒原" in html or "404 - 知乎" in html:
             raise RuntimeError("知乎页面显示「没有知识存在的荒原」(HTTP 404)，该文章可能不存在、已被作者删除或链接有误。")

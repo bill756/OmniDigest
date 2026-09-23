@@ -42,9 +42,9 @@ class DigestResponse(BaseModel):
     cached: bool = False
     token_count: int = 0
     mindmap: str = Field(..., description="Markdown 树状层级思维导图")
-    summary: str = Field(..., description="核心脱水逻辑摘要")
+    summary: str = Field(..., description="核心精读内容摘要")
     claims: List[ClaimItem] = Field(default_factory=list, description="提取的关键断言及其核查状态")
-    final_report: str = Field(..., description="综合智能报告 Markdown")
+    final_report: str = Field(..., description="综合精读报告 Markdown")
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
 
@@ -60,10 +60,14 @@ class SearchResultItem(BaseModel):
     source_platform: str
     summary: str
     similarity: float
+    match_reason: Optional[str] = Field(default=None, description="命中原因解析（如标题精准命中、全文关键词强相关等）")
     created_at: str
 
 
 class SearchResponse(BaseModel):
     query: str
+    corrected_query: Optional[str] = Field(default=None, description="智能纠错或意图归一化后的标准词")
+    notice: Optional[str] = Field(default=None, description="智能纠错或扩展提示信息")
     total: int
     results: List[SearchResultItem]
+

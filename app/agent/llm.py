@@ -135,8 +135,8 @@ class MockLLMService:
         claims: Optional[List[Dict[str, Any]]] = None,
         summary: Optional[str] = None,
     ) -> Dict[str, str]:
-        """仿真智能脱水与结构化报告合成：
-        根据文章实际内容与断言核查结果动态构建思维导图、脱水摘要与完整报告，避免固定模板式输出。
+        """本地深度精读与结构化报告合成：
+        根据文章实际内容与断言核查结果动态构建思维导图、精读摘要与完整报告，避免固定模板式输出。
         """
         text = (content or summary or "").strip()
         claims = claims or []
@@ -301,10 +301,10 @@ class MockLLMService:
 
         summary_items.append(f"4. 价值结论：{trim(conclusion_points[0], 100)}")
 
-        structured_summary = f"【核心论点】\n{summary_thesis}\n\n【脱水要点】\n" + "\n".join(summary_items)
+        structured_summary = f"【核心论点】\n{summary_thesis}\n\n【核心要点】\n" + "\n".join(summary_items)
 
         # 8. 动态生成最终长篇报告
-        final_report = f"""# 📄 《{title}》智能脱水与深度核验报告
+        final_report = f"""# 📄 《{title}》深度精读与事实核验报告
 
 ---
 
@@ -315,7 +315,7 @@ class MockLLMService:
 
 ---
 
-## 💡 深度脱水摘要
+## 💡 核心内容提炼
 {structured_summary}
 
 ---

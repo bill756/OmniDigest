@@ -36,12 +36,12 @@ class Article(Base):
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
-    # 关联生成的脱水报告记录
+    # 关联生成的精读报告记录
     digest_records = relationship("DigestRecord", back_populates="article", cascade="all, delete-orphan")
 
 
 class DigestRecord(Base):
-    """脱水报告、事实核查与向量化存储"""
+    """精读报告、事实核查与向量化存储"""
     __tablename__ = "digest_records"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)

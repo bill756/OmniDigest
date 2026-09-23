@@ -27,4 +27,7 @@ pytest>=8.1.0
 pytest-asyncio>=0.23.5
 jieba>=0.42.1
 typesafe-sdk>=0.7.0
+fastembed>=0.8.0
+
+rookiepy>=0.5.6
 

@@ -17,7 +17,22 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str = "https://api.deepseek.com/v1"
     MODEL_NAME: str = "deepseek-chat"
     TEMPERATURE: float = 0.3
-    EMBEDDING_MODEL_NAME: str = "text-embedding-3-small"
+    # 向量嵌入配置 (支持外部兼容 OpenAI 规范接口，若未配置或为 DeepSeek 则自动启用本地高性能向量引擎)
+    EMBEDDING_API_KEY: Optional[str] = None
+    EMBEDDING_BASE_URL: Optional[str] = None
+    EMBEDDING_MODEL_NAME: str = "BAAI/bge-small-zh-v1.5"
+    EMBEDDING_THRESHOLD: float = 0.30  # 相似度召回门槛，过滤无关噪音
+
+    @property
+    def is_external_embedding_available(self) -> bool:
+        """检查是否有可用且非 DeepSeek 的外部 Embedding 服务"""
+        base_url = (self.EMBEDDING_BASE_URL or self.OPENAI_BASE_URL or "").lower()
+        api_key = self.EMBEDDING_API_KEY or self.OPENAI_API_KEY
+        if not api_key:
+            return False
+        if "deepseek.com" in base_url:
+            return False
+        return bool(base_url)
 
     # 联网搜索核查配置 (Tavily 或 DuckDuckGo)
     TAVILY_API_KEY: Optional[str] = None
@@ -51,3 +66,9 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def update_zhihu_cookie(new_cookie: str) -> None:
+    """动态热更新知乎 Cookie，无需重启服务"""
+    settings = get_settings()
+    settings.ZHIHU_COOKIE = new_cookie
